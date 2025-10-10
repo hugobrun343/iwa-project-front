@@ -6,11 +6,77 @@ import { AuthService } from '../services/authService';
 import { UserService } from '../services/userService';
 import { storeToken, getStoredToken, clearAllTokens } from '../utils/tokenStorage';
 import { User } from '../types/auth';
+import * as Crypto from 'expo-crypto';
+
+// PKCE utilities
+// Minimal base64 and base64url helpers (ASCII-safe) for PKCE without Buffer/global
+const b64chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+const encodeBase64 = (bytes: Uint8Array): string => {
+  let out = '';
+  let i = 0;
+  while (i < bytes.length) {
+    const b1 = bytes[i++] ?? 0;
+    const b2 = bytes[i++] ?? 0;
+    const b3 = bytes[i++] ?? 0;
+    const enc1 = b1 >> 2;
+    const enc2 = ((b1 & 3) << 4) | (b2 >> 4);
+    const enc3 = ((b2 & 15) << 2) | (b3 >> 6);
+    const enc4 = b3 & 63;
+    if (isNaN(b2)) {
+      out += b64chars.charAt(enc1) + b64chars.charAt(enc2) + '==';
+    } else if (isNaN(b3)) {
+      out += b64chars.charAt(enc1) + b64chars.charAt(enc2) + b64chars.charAt(enc3) + '=';
+    } else {
+      out += b64chars.charAt(enc1) + b64chars.charAt(enc2) + b64chars.charAt(enc3) + b64chars.charAt(enc4);
+    }
+  }
+  return out;
+};
+
+const toBase64Url = (data: Uint8Array): string => encodeBase64(data).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+const fromBase64 = (b64: string): Uint8Array => {
+  b64 = b64.replace(/-/g, '+').replace(/_/g, '/');
+  while (b64.length % 4) b64 += '='; // pad
+  let str = '';
+  let i = 0;
+  while (i < b64.length) {
+    const e1 = b64chars.indexOf(b64.charAt(i++));
+    const e2 = b64chars.indexOf(b64.charAt(i++));
+    const e3 = b64chars.indexOf(b64.charAt(i++));
+    const e4 = b64chars.indexOf(b64.charAt(i++));
+    const c1 = (e1 << 2) | (e2 >> 4);
+    const c2 = ((e2 & 15) << 4) | (e3 >> 2);
+    const c3 = ((e3 & 3) << 6) | e4;
+    str += String.fromCharCode(c1);
+    if (e3 !== 64 && e3 !== -1) str += String.fromCharCode(c2);
+    if (e4 !== 64 && e4 !== -1) str += String.fromCharCode(c3);
+  }
+  const out = new Uint8Array(str.length);
+  for (let j = 0; j < str.length; j++) out[j] = str.charCodeAt(j);
+  return out;
+};
+
+const generateCodeVerifier = async (): Promise<string> => {
+  const random = await Crypto.getRandomBytesAsync(32);
+  return toBase64Url(random);
+};
+
+const sha256 = async (plain: string): Promise<Uint8Array> => {
+  const digestB64 = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    plain,
+    { encoding: Crypto.CryptoEncoding.BASE64 }
+  );
+  return fromBase64(digestB64);
+};
+
+const base64UrlEncode = (bytes: Uint8Array): string => toBase64Url(bytes);
 
 export const useAuthActions = () => {
   const [isLoading, setIsLoading] = useState(false);
 
-  const buildAuthUrl = (useGoogle = false) => {
+  const buildAuthUrl = (useGoogle = false, pkce?: { codeChallenge: string; codeChallengeMethod: string }) => {
     const baseUrl = useGoogle 
       ? `${KEYCLOAK_CONFIG.url}/realms/${KEYCLOAK_CONFIG.realm}/broker/google/login`
       : `${KEYCLOAK_CONFIG.url}/realms/${KEYCLOAK_CONFIG.realm}/protocol/openid-connect/auth`;
@@ -22,6 +88,11 @@ export const useAuthActions = () => {
       scope: 'openid profile email',
     });
 
+    if (pkce) {
+      params.append('code_challenge', pkce.codeChallenge);
+      params.append('code_challenge_method', pkce.codeChallengeMethod);
+    }
+
     if (!useGoogle) {
       params.append('kc_idp_hint', 'google');
     }
@@ -31,16 +102,15 @@ export const useAuthActions = () => {
 
   const performLogin = async (useGoogle = false): Promise<{ user: User | null; tokens: any }> => {
     try {
+      if (isLoading) {
+        console.log('⚠️ Login already in progress, ignoring duplicate tap');
+        return { user: null, tokens: null };
+      }
       setIsLoading(true);
 
-      const authUrl = buildAuthUrl(useGoogle);
-      const code = await AuthService.openAuthSession(authUrl);
-
-      if (!code) {
-        throw new Error('No authorization code received');
-      }
-
-      const tokens = await AuthService.exchangeCodeForTokens(code);
+      console.log('� Attempting managed AuthRequest flow (no fallback)...');
+      const managed = await AuthService.loginWithAuthRequest(useGoogle);
+      const tokens = await AuthService.exchangeCodeForTokens(managed.code, managed.codeVerifier);
 
       if (!tokens.access_token) {
         throw new Error('No access token received');
