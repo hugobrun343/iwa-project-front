@@ -30,6 +30,7 @@ export const clearAllTokens = async (): Promise<void> => {
   await Promise.all([
     removeStoredToken('access_token'),
     removeStoredToken('refresh_token'),
+    removeStoredToken('id_token'),
     removeStoredToken('code_verifier')
   ]);
 };

@@ -110,15 +110,16 @@ export const useAuthActions = () => {
 
       console.log('� Attempting managed AuthRequest flow (no fallback)...');
       const managed = await AuthService.loginWithAuthRequest(useGoogle);
-      const tokens = await AuthService.exchangeCodeForTokens(managed.code, managed.codeVerifier);
+  const tokens = await AuthService.exchangeCodeForTokens(managed.code, managed.codeVerifier);
 
       if (!tokens.access_token) {
         throw new Error('No access token received');
       }
 
       // Store tokens securely
-      await storeToken('access_token', tokens.access_token);
-      await storeToken('refresh_token', tokens.refresh_token);
+  await storeToken('access_token', tokens.access_token);
+  if (tokens.id_token) await storeToken('id_token', tokens.id_token);
+  await storeToken('refresh_token', tokens.refresh_token);
 
       // Get user info
       const user = await AuthService.fetchUserInfo(tokens.access_token);
@@ -134,18 +135,23 @@ export const useAuthActions = () => {
 
   const performLogout = async (): Promise<void> => {
     try {
-      // Clear stored tokens
+      // Read id_token for id_token_hint if available
+      const idToken = await getStoredToken('id_token');
+
+      // Build proper OIDC logout with post_logout_redirect_uri
+      const params = new URLSearchParams();
+      params.append('client_id', KEYCLOAK_CONFIG.clientId);
+      params.append('post_logout_redirect_uri', KEYCLOAK_CONFIG.redirectUri);
+      if (idToken) params.append('id_token_hint', idToken);
+
+      const logoutUrl = `${KEYCLOAK_CONFIG.url}/realms/${KEYCLOAK_CONFIG.realm}/protocol/openid-connect/logout?${params.toString()}`;
+
+      const result = await WebBrowser.openAuthSessionAsync(logoutUrl, KEYCLOAK_CONFIG.redirectUri);
+      // Dismiss the browser explicitly to return to the app UI
+      try { await WebBrowser.dismissBrowser(); } catch {}
+      // Clear tokens after Keycloak confirms
       await clearAllTokens();
-
-      // Optional: Logout from Keycloak
-      const logoutUrl = `${KEYCLOAK_CONFIG.url}/realms/${KEYCLOAK_CONFIG.realm}/protocol/openid-connect/logout?` +
-        `client_id=${KEYCLOAK_CONFIG.clientId}&` +
-        `redirect_uri=${encodeURIComponent(KEYCLOAK_CONFIG.redirectUri)}`;
-
-      await WebBrowser.openAuthSessionAsync(
-        logoutUrl,
-        KEYCLOAK_CONFIG.redirectUri
-      );
+      console.log('✅ Logged out, browser closed, tokens cleared:', result.type);
     } catch (error) {
       console.error('Logout error:', error);
       throw error;
