@@ -20,6 +20,7 @@ import { SubscriptionPage } from './src/components/SubscriptionPage';
 import { PaymentsPage } from './src/components/PaymentsPage';
 import { EditProfilePage } from './src/components/EditProfilePage';
 import { AdvancedSettingsPage } from './src/components/AdvancedSettingsPage';
+import { LanguageSelectorPage } from './src/components/LanguageSelectorPage';
 import { LoginPage } from './src/components/LoginPage';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { theme } from './src/styles/theme';
@@ -261,6 +262,14 @@ function MainApp() {
       case "advanced-settings":
         return (
           <AdvancedSettingsPage
+            onBack={handleBack}
+            onNavigate={handleNavigate}
+          />
+        );
+
+      case "language-selector":
+        return (
+          <LanguageSelectorPage
             onBack={handleBack}
           />
         );

@@ -8,9 +8,10 @@ import { theme } from '../styles/theme';
 
 interface AdvancedSettingsPageProps {
   onBack: () => void;
+  onNavigate?: (page: string) => void;
 }
 
-export const AdvancedSettingsPage: React.FC<AdvancedSettingsPageProps> = ({ onBack }) => {
+export const AdvancedSettingsPage: React.FC<AdvancedSettingsPageProps> = ({ onBack, onNavigate }) => {
   const { t, i18n } = useTranslation();
 
   const languages = [
@@ -22,6 +23,10 @@ export const AdvancedSettingsPage: React.FC<AdvancedSettingsPageProps> = ({ onBa
     if (i18n.language === code) return;
     i18n.changeLanguage(code);
   };
+
+  const currentLanguageLabel =
+    languages.find(lang => i18n.language.startsWith(lang.code))?.label ||
+    (i18n.language === 'fr' ? t('settings.languageFrench') : t('settings.languageEnglish'));
 
   return (
     <SafeAreaView style={styles.container}>
@@ -35,31 +40,16 @@ export const AdvancedSettingsPage: React.FC<AdvancedSettingsPageProps> = ({ onBa
       <View style={styles.content}>
         <Card style={styles.sectionCard}>
           <CardContent style={styles.sectionContent}>
-            <Text style={styles.sectionTitle}>{t('settings.languageTitle')}</Text>
-            <Text style={styles.sectionDescription}>{t('settings.languageDescription')}</Text>
-
-            <View style={styles.languageList}>
-              {languages.map(language => {
-                const selected = i18n.language.startsWith(language.code);
-                return (
-                  <TouchableOpacity
-                    key={language.code}
-                    style={[styles.languageOption, selected && styles.languageOptionSelected]}
-                    onPress={() => handleLanguageChange(language.code)}
-                  >
-                    <View style={styles.languageInfo}>
-                      <Text style={styles.languageLabel}>{language.label}</Text>
-                      <Text style={styles.languageCode}>{language.code.toUpperCase()}</Text>
-                    </View>
-                    {selected ? (
-                      <Icon name="checkmark-circle" size={20} color={theme.colors.primary} />
-                    ) : (
-                      <Icon name="ellipse-outline" size={20} color={theme.colors.mutedForeground} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() => onNavigate?.('language-selector')}
+            >
+              <View style={styles.settingRowLeft}>
+                <Text style={styles.sectionTitle}>{t('settings.languageTitle')}</Text>
+                <Text style={styles.currentValue}>{currentLanguageLabel}</Text>
+              </View>
+              <Icon name="ChevronRight" size={18} color={theme.colors.mutedForeground} />
+            </TouchableOpacity>
           </CardContent>
         </Card>
       </View>
@@ -97,10 +87,23 @@ const styles = StyleSheet.create({
   sectionContent: {
     gap: theme.spacing.lg,
   },
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: theme.spacing.md,
+  },
+  settingRowLeft: {
+    gap: 4,
+  },
   sectionTitle: {
     fontSize: theme.fontSize.base,
     fontWeight: theme.fontWeight.semibold,
     color: theme.colors.foreground,
+  },
+  currentValue: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
   },
   sectionDescription: {
     fontSize: theme.fontSize.sm,

@@ -32,7 +32,11 @@
     "languageDescription": "Sélectionnez la langue utilisée dans l'interface.",
     "languageEnglish": "Anglais",
     "languageFrench": "Français",
-    "back": "Retour"
+    "back": "Retour",
+    "languageSelectTitle": "Sélectionner la langue",
+    "searchPlaceholder": "Rechercher une langue",
+    "allLanguages": "Toutes les langues",
+    "continue": "Continuer"
   }
 }
 
