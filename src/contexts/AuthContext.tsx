@@ -53,6 +53,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const simulateLogin = async () => {
+    try {
+      setIsLoading(true);
+      const fakeUser: User = {
+        id: 'dev-user-1',
+        email: 'dev.user@example.com',
+        firstName: 'Dev',
+        lastName: 'User',
+        username: 'devuser',
+        telephone: '0000000000',
+        localisation: 'DevVille',
+        description: 'Utilisateur simulé pour le développement',
+        photo_profil: undefined,
+        verification_identite: true,
+        preferences: undefined,
+        date_inscription: new Date().toISOString(),
+        fullName: 'Dev User',
+        isVerified: true,
+      };
+      setUser(fakeUser);
+      setAccessToken('dev-access-token');
+      setRefreshTokenValue('dev-refresh-token');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const loginWithGoogle = async () => {
     try {
       const { user, tokens } = await authActions.performLogin(true);
@@ -148,6 +175,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading: isLoading || authActions.isLoading,
     isAuthenticated,
     login,
+    simulateLogin,
     loginWithGoogle,
     logout,
     refreshToken,

@@ -10,6 +10,7 @@ import { Switch } from './ui/Switch';
 import { useAuth } from '../contexts/AuthContext';
 import { ImageWithFallback } from './ui/ImageWithFallback';
 import { theme } from '../styles/theme';
+import { useTranslation } from 'react-i18next';
 
 interface ProfilePageProps {
   onNavigate?: (page: string) => void;
@@ -18,6 +19,7 @@ interface ProfilePageProps {
 export function ProfilePage({ onNavigate }: ProfilePageProps) {
   const { user, logout } = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
+  const { t } = useTranslation();
   
   const userStats = {
     listingsCreated: 12,
@@ -242,18 +244,21 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                   <Icon name="ChevronRight" size={16} color={theme.colors.mutedForeground} />
                 </View>
                 
-                <View style={styles.menuItem}>
+                <TouchableOpacity 
+                  style={styles.menuItem}
+                  onPress={() => onNavigate?.("advanced-settings")}
+                >
                   <View style={styles.menuItemLeft}>
                     <View style={styles.settingsIcon}>
                       <Icon name="Settings" size={20} color={theme.colors.mutedForeground} />
                     </View>
                     <View style={styles.menuItemContent}>
-                      <Text style={styles.menuItemTitle}>Paramètres avancés</Text>
-                      <Text style={styles.menuItemDescription}>Confidentialité et sécurité</Text>
+                      <Text style={styles.menuItemTitle}>{t('settings.advancedTitle')}</Text>
+                      <Text style={styles.menuItemDescription}>{t('settings.advancedDescription')}</Text>
                     </View>
                   </View>
                   <Icon name="ChevronRight" size={16} color={theme.colors.mutedForeground} />
-                </View>
+                </TouchableOpacity>
               </View>
             </CardContent>
           </Card>

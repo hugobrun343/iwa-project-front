@@ -6,13 +6,19 @@ import { Button } from './ui/Button';
 import { Card, CardContent } from './ui/Card';
 import { useAuth } from '../contexts/AuthContext';
 import { theme } from '../styles/theme';
+import { useTranslation } from 'react-i18next';
 
 export const LoginPage: React.FC = () => {
-  const { login, isLoading } = useAuth();
+  const { simulateLogin, login, isLoading } = useAuth();
+  const { t } = useTranslation();
 
   const handleLogin = async () => {
     try {
-      await login();
+      if (simulateLogin) {
+        await simulateLogin();
+      } else {
+        await login();
+      }
     } catch (error) {
       console.error('Login failed:', error);
       Alert.alert('Erreur', 'Échec de la connexion. Veuillez réessayer.');
@@ -27,10 +33,8 @@ export const LoginPage: React.FC = () => {
           <View style={styles.logoContainer}>
             <Icon name="shield-checkmark" size={64} color={theme.colors.primary} />
           </View>
-          <Text style={styles.title}>GuardHome</Text>
-          <Text style={styles.subtitle}>
-            Connectez-vous pour accéder à votre espace personnel
-          </Text>
+          <Text style={styles.title}>{t('login.title')}</Text>
+          <Text style={styles.subtitle}>{t('login.subtitle')}</Text>
         </View>
 
         {/* Login Card */}
@@ -38,10 +42,8 @@ export const LoginPage: React.FC = () => {
           <CardContent style={styles.cardContent}>
             <View style={styles.loginHeader}>
               <Icon name="key" size={32} color={theme.colors.primary} />
-              <Text style={styles.loginTitle}>Connexion sécurisée</Text>
-              <Text style={styles.loginDescription}>
-                Utilisez votre compte pour accéder à toutes les fonctionnalités
-              </Text>
+              <Text style={styles.loginTitle}>{t('login.secureTitle')}</Text>
+              <Text style={styles.loginDescription}>{t('login.secureDescription')}</Text>
             </View>
 
             {/* Standard Login Button */}
@@ -54,12 +56,12 @@ export const LoginPage: React.FC = () => {
               {isLoading ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="small" color="#ffffff" />
-                  <Text style={styles.loadingText}>Connexion...</Text>
+                  <Text style={styles.loadingText}>{t('login.connecting')}</Text>
                 </View>
               ) : (
                 <View style={styles.buttonContent}>
                   <Icon name="log-in" size={20} color="#ffffff" />
-                  <Text style={styles.buttonText}>Se connecter</Text>
+                  <Text style={styles.buttonText}>{t('login.connect')}</Text>
                 </View>
               )}
             </Button>
@@ -70,31 +72,29 @@ export const LoginPage: React.FC = () => {
               
               <View style={styles.featureItem}>
                 <Icon name="checkmark-circle" size={16} color={theme.colors.primary} />
-                <Text style={styles.featureText}>Créer et gérer vos annonces</Text>
+                <Text style={styles.featureText}>{t('login.featureCreate')}</Text>
               </View>
               
               <View style={styles.featureItem}>
                 <Icon name="checkmark-circle" size={16} color={theme.colors.primary} />
-                <Text style={styles.featureText}>Sauvegarder vos favoris</Text>
+                <Text style={styles.featureText}>{t('login.featureSave')}</Text>
               </View>
               
               <View style={styles.featureItem}>
                 <Icon name="checkmark-circle" size={16} color={theme.colors.primary} />
-                <Text style={styles.featureText}>Communiquer avec d'autres utilisateurs</Text>
+                <Text style={styles.featureText}>{t('login.featureChat')}</Text>
               </View>
               
               <View style={styles.featureItem}>
                 <Icon name="checkmark-circle" size={16} color={theme.colors.primary} />
-                <Text style={styles.featureText}>Gérer votre profil et vos préférences</Text>
+                <Text style={styles.featureText}>{t('login.featureProfile')}</Text>
               </View>
             </View>
 
             {/* Security Notice */}
             <View style={styles.securityNotice}>
               <Icon name="shield-checkmark" size={16} color={theme.colors.mutedForeground} />
-              <Text style={styles.securityText}>
-                Vos données sont protégées par un système d'authentification sécurisé
-              </Text>
+              <Text style={styles.securityText}>{t('login.securityNote')}</Text>
             </View>
           </CardContent>
         </Card>
@@ -102,7 +102,7 @@ export const LoginPage: React.FC = () => {
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            En vous connectant, vous acceptez nos conditions d'utilisation
+            {t('login.footer')}
           </Text>
         </View>
       </View>

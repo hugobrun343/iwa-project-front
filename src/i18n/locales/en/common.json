@@ -1,0 +1,38 @@
+{
+  "app": {
+    "loading": "Loading..."
+  },
+  "nav": {
+    "search": "Search",
+    "favorites": "Favorites",
+    "create": "Create",
+    "messages": "Messages",
+    "profile": "Profile"
+  },
+  "login": {
+    "title": "GuardHome",
+    "subtitle": "Sign in to access your personal space",
+    "secureTitle": "Secure login",
+    "secureDescription": "Use your account to access all features",
+    "connect": "Sign in",
+    "connecting": "Signing in...",
+    "footer": "By logging in, you accept our terms of use",
+    "featureCreate": "Create and manage your listings",
+    "featureSave": "Save your favorites",
+    "featureChat": "Communicate with other users",
+    "featureProfile": "Manage your profile and preferences",
+    "securityNote": "Your data is protected by a secure authentication system",
+    "errorTitle": "Error",
+    "errorMessage": "Login failed. Please try again."
+  },
+  "settings": {
+    "advancedTitle": "Advanced settings",
+    "advancedDescription": "Privacy and security options",
+    "languageTitle": "App language",
+    "languageDescription": "Choose the language used in the interface.",
+    "languageEnglish": "English",
+    "languageFrench": "French",
+    "back": "Back"
+  }
+}
+

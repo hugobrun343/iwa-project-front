@@ -21,6 +21,7 @@ export interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: () => Promise<void>;
+  simulateLogin?: () => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;

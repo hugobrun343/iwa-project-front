@@ -19,9 +19,12 @@ import { ReviewsPage } from './src/components/ReviewsPage';
 import { SubscriptionPage } from './src/components/SubscriptionPage';
 import { PaymentsPage } from './src/components/PaymentsPage';
 import { EditProfilePage } from './src/components/EditProfilePage';
+import { AdvancedSettingsPage } from './src/components/AdvancedSettingsPage';
 import { LoginPage } from './src/components/LoginPage';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { theme } from './src/styles/theme';
+import './src/i18n';
+import { useTranslation } from 'react-i18next';
 
 const mockListings = [
   {
@@ -85,6 +88,7 @@ const mockListings = [
 // Main App Component with Authentication
 function MainApp() {
   const { isAuthenticated, isLoading, user } = useAuth();
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState("home");
   const [currentPage, setCurrentPage] = useState("home");
   const [selectedListing, setSelectedListing] = useState(null);
@@ -99,7 +103,7 @@ function MainApp() {
         <StatusBar style="dark" backgroundColor="#ffffff" />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={styles.loadingText}>Chargement...</Text>
+          <Text style={styles.loadingText}>{t('app.loading')}</Text>
         </View>
       </SafeAreaProvider>
     );
@@ -254,6 +258,13 @@ function MainApp() {
           />
         );
       
+      case "advanced-settings":
+        return (
+          <AdvancedSettingsPage
+            onBack={handleBack}
+          />
+        );
+      
       case "edit-profile":
         return (
           <EditProfilePage
@@ -286,11 +297,11 @@ function MainApp() {
         {/* Bottom Navigation - TOUJOURS VISIBLE */}
         <View style={styles.bottomNav}>
           {[
-            { id: "home", label: "Recherche", icon: "Search" },
-            { id: "favorites", label: "Favoris", icon: "heart-outline" },
-            { id: "create", label: "Créer", icon: "add-outline" },
-            { id: "messages", label: "Messages", icon: "chatbubble" },
-            { id: "profile", label: "Profil", icon: "person" },
+            { id: "home", label: t('nav.search'), icon: "Search" },
+            { id: "favorites", label: t('nav.favorites'), icon: "heart-outline" },
+            { id: "create", label: t('nav.create'), icon: "add-outline" },
+            { id: "messages", label: t('nav.messages'), icon: "chatbubble" },
+            { id: "profile", label: t('nav.profile'), icon: "person" },
           ].map((tab) => (
             <Button
               key={tab.id}
