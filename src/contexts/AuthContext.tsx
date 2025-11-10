@@ -179,6 +179,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     isLoading: isLoading || authActions.isLoading,
     isAuthenticated,
+    accessToken,
     login,
     simulateLogin: ENABLE_SIMULATED_LOGIN ? simulateLogin : undefined,
     loginWithGoogle,

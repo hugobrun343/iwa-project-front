@@ -20,6 +20,7 @@ export interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  accessToken: string | null;
   login: () => Promise<void>;
   simulateLogin?: () => Promise<void>;
   loginWithGoogle: () => Promise<void>;
