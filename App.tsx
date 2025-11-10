@@ -346,10 +346,14 @@ function MainApp() {
                     color={activeTab === tab.id ? theme.colors.primary : theme.colors.mutedForeground}
                   />
                 )}
-                <Text style={[
+                <Text
+                  style={[
                   styles.tabLabel,
                   { color: activeTab === tab.id ? theme.colors.primary : theme.colors.mutedForeground }
-                ]}>
+                ]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
                   {tab.label}
                 </Text>
               </View>
@@ -407,6 +411,8 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontSize: theme.fontSize.xs,
     fontWeight: theme.fontWeight.medium,
+    maxWidth: 100,
+    textAlign: 'center',
   },
   loadingContainer: {
     flex: 1,
