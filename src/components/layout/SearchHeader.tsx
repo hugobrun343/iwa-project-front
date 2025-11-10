@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { PageHeader } from './ui/PageHeader';
-import { SearchBar } from './ui/SearchBar';
-import { Filters } from './ui/Filters';
-import { theme } from '../styles/theme';
+import { PageHeader } from '../ui/PageHeader';
+import { SearchBar } from '../ui/SearchBar';
+import { Filters } from '../ui/Filters';
+import { theme } from '../../styles/theme';
 
 interface SearchHeaderProps {
   onSearch?: (query: string) => void;

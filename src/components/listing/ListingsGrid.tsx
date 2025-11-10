@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { ListingCard } from './ListingCard';
-import { theme } from '../styles/theme';
+import { theme } from '../../styles/theme';
 
 interface Listing {
   id: string;

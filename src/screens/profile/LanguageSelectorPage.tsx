@@ -2,8 +2,8 @@ import React from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Icon } from './ui/Icon';
-import { theme } from '../styles/theme';
+import { Icon } from '../../components/ui/Icon';
+import { theme } from '../../styles/theme';
 
 interface LanguageSelectorPageProps {
   onBack: () => void;

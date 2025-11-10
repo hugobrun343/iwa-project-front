@@ -1,20 +1,24 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Icon } from './ui/Icon';
-import { Button } from './ui/Button';
-import { Card, CardContent } from './ui/Card';
-import { useAuth } from '../contexts/AuthContext';
-import { theme } from '../styles/theme';
+import { Icon } from '../../components/ui/Icon';
+import { Button } from '../../components/ui/Button';
+import { Card, CardContent } from '../../components/ui/Card';
+import { useAuth } from '../../contexts/AuthContext';
+import { theme } from '../../styles/theme';
 import { useTranslation } from 'react-i18next';
 
-export const LoginPage: React.FC = () => {
+interface LoginPageProps {
+  allowSimulatedLogin?: boolean;
+}
+
+export const LoginPage: React.FC<LoginPageProps> = ({ allowSimulatedLogin = false }) => {
   const { simulateLogin, login, isLoading } = useAuth();
   const { t } = useTranslation();
 
   const handleLogin = async () => {
     try {
-      if (simulateLogin) {
+      if (allowSimulatedLogin && simulateLogin) {
         await simulateLogin();
       } else {
         await login();

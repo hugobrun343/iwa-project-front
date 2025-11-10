@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
-import { SearchHeader } from './SearchHeader';
-import { ListingsGrid } from './ListingsGrid';
-import { theme } from '../styles/theme';
+import { SearchHeader } from '../../components/layout/SearchHeader';
+import { ListingsGrid } from '../../components/listing/ListingsGrid';
+import { theme } from '../../styles/theme';
 
 interface SearchPageProps {
   listings: any[];

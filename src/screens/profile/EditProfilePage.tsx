@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from './ui/Button';
-import { Card, CardContent } from './ui/Card';
-import { Input } from './ui/Input';
-import { Textarea } from './ui/Textarea';
-import { Label } from './ui/Label';
-import { Icon } from './ui/Icon';
-import { ImageWithFallback } from './ui/ImageWithFallback';
-import { theme } from '../styles/theme';
+import { Button } from '../../components/ui/Button';
+import { Card, CardContent } from '../../components/ui/Card';
+import { Input } from '../../components/ui/Input';
+import { Textarea } from '../../components/ui/Textarea';
+import { Label } from '../../components/ui/Label';
+import { Icon } from '../../components/ui/Icon';
+import { ImageWithFallback } from '../../components/ui/ImageWithFallback';
+import { theme } from '../../styles/theme';
 
 interface EditProfilePageProps {
   onBack: () => void;

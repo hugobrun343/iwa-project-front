@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Dimensions } from 'react-native';
-import { Button } from './ui/Button';
-import { Badge } from './ui/Badge';
-import { Card, CardContent } from './ui/Card';
-import { Icon } from './ui/Icon';
-import { ImageWithFallback } from './ui/ImageWithFallback';
-import { theme } from '../styles/theme';
+import { Button } from '../../components/ui/Button';
+import { Badge } from '../../components/ui/Badge';
+import { Card, CardContent } from '../../components/ui/Card';
+import { Icon } from '../../components/ui/Icon';
+import { ImageWithFallback } from '../../components/ui/ImageWithFallback';
+import { theme } from '../../styles/theme';
 
 const { width: screenWidth } = Dimensions.get('window');
 

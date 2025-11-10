@@ -7,21 +7,21 @@ import { Card, CardContent } from './src/components/ui/Card';
 import { Badge } from './src/components/ui/Badge';
 import { Icon } from './src/components/ui/Icon';
 import { ImageWithFallback } from './src/components/ui/ImageWithFallback';
-import { SearchPage } from './src/components/SearchPage';
-import { ListingDetailPage } from './src/components/ListingDetailPage';
-import { ProfilePage } from './src/components/ProfilePage';
-import { FavoritesPage } from './src/components/FavoritesPage';
-import { MessagesPage } from './src/components/MessagesPage';
-import { CreateListingPage } from './src/components/CreateListingPage';
-import { MyListingsPage } from './src/components/MyListingsPage';
-import { GuardHistoryPage } from './src/components/GuardHistoryPage';
-import { ReviewsPage } from './src/components/ReviewsPage';
-import { SubscriptionPage } from './src/components/SubscriptionPage';
-import { PaymentsPage } from './src/components/PaymentsPage';
-import { EditProfilePage } from './src/components/EditProfilePage';
-import { AdvancedSettingsPage } from './src/components/AdvancedSettingsPage';
-import { LanguageSelectorPage } from './src/components/LanguageSelectorPage';
-import { LoginPage } from './src/components/LoginPage';
+import { SearchPage } from './src/screens/listings/SearchPage';
+import { ListingDetailPage } from './src/screens/listings/ListingDetailPage';
+import { ProfilePage } from './src/screens/profile/ProfilePage';
+import { FavoritesPage } from './src/screens/favorites/FavoritesPage';
+import { MessagesPage } from './src/screens/messages/MessagesPage';
+import { CreateListingPage } from './src/screens/listings/CreateListingPage';
+import { MyListingsPage } from './src/screens/listings/MyListingsPage';
+import { GuardHistoryPage } from './src/screens/profile/GuardHistoryPage';
+import { ReviewsPage } from './src/screens/profile/ReviewsPage';
+import { SubscriptionPage } from './src/screens/profile/SubscriptionPage';
+import { PaymentsPage } from './src/screens/profile/PaymentsPage';
+import { EditProfilePage } from './src/screens/profile/EditProfilePage';
+import { AdvancedSettingsPage } from './src/screens/profile/AdvancedSettingsPage';
+import { LanguageSelectorPage } from './src/screens/profile/LanguageSelectorPage';
+import { LoginPage } from './src/screens/auth/LoginPage';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { theme } from './src/styles/theme';
 import './src/i18n';
@@ -90,6 +90,7 @@ const mockListings = [
 function MainApp() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const { t } = useTranslation();
+  const enableSimulatedLogin = process.env.EXPO_PUBLIC_ENABLE_SIMULATED_LOGIN === 'true';
   const [activeTab, setActiveTab] = useState("home");
   const [currentPage, setCurrentPage] = useState("home");
   const [selectedListing, setSelectedListing] = useState(null);
@@ -115,7 +116,7 @@ function MainApp() {
     return (
       <SafeAreaProvider>
         <StatusBar style="dark" backgroundColor="#ffffff" />
-        <LoginPage />
+        <LoginPage allowSimulatedLogin={enableSimulatedLogin} />
       </SafeAreaProvider>
     );
   }

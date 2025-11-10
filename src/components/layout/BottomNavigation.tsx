@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Icon, IconName } from './ui/Icon';
-import { theme } from '../styles/theme';
+import { Icon, IconName } from '../ui/Icon';
+import { theme } from '../../styles/theme';
 
 interface BottomNavigationProps {
   activeTab: string;

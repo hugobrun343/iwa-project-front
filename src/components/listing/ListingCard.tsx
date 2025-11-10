@@ -1,10 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Card, CardContent } from './ui/Card';
-import { Badge } from './ui/Badge';
-import { Icon } from './ui/Icon';
-import { ImageWithFallback } from './ui/ImageWithFallback';
-import { theme } from '../styles/theme';
+import { Card, CardContent } from '../ui/Card';
+import { Badge } from '../ui/Badge';
+import { Icon } from '../ui/Icon';
+import { ImageWithFallback } from '../ui/ImageWithFallback';
+import { theme } from '../../styles/theme';
 
 interface ListingCardProps {
   id: string;

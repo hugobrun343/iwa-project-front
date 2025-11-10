@@ -1,11 +1,11 @@
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from './ui/Button';
-import { Card, CardContent } from './ui/Card';
-import { Badge } from './ui/Badge';
-import { Icon } from './ui/Icon';
-import { theme } from '../styles/theme';
+import { Button } from '../../components/ui/Button';
+import { Card, CardContent } from '../../components/ui/Card';
+import { Badge } from '../../components/ui/Badge';
+import { Icon } from '../../components/ui/Icon';
+import { theme } from '../../styles/theme';
 
 interface SubscriptionPageProps {
   onBack: () => void;

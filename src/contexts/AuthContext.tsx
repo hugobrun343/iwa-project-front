@@ -6,6 +6,8 @@ import { useAuthActions } from '../hooks/useAuthActions';
 // Configure WebBrowser for better UX
 WebBrowser.maybeCompleteAuthSession();
 
+const ENABLE_SIMULATED_LOGIN = process.env.EXPO_PUBLIC_ENABLE_SIMULATED_LOGIN === 'true';
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
@@ -54,6 +56,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const simulateLogin = async () => {
+    if (!ENABLE_SIMULATED_LOGIN) {
+      throw new Error('Simulated login is disabled by configuration');
+    }
     try {
       setIsLoading(true);
       const fakeUser: User = {
@@ -175,7 +180,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading: isLoading || authActions.isLoading,
     isAuthenticated,
     login,
-    simulateLogin,
+    simulateLogin: ENABLE_SIMULATED_LOGIN ? simulateLogin : undefined,
     loginWithGoogle,
     logout,
     refreshToken,

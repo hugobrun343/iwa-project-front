@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from './ui/Button';
-import { Input } from './ui/Input';
-import { Textarea } from './ui/Textarea';
-import { Label } from './ui/Label';
-import { Card, CardContent } from './ui/Card';
-import { Badge } from './ui/Badge';
-import { Select } from './ui/Select';
-import { Icon } from './ui/Icon';
-import { PageHeader } from './ui/PageHeader';
-import { Switch } from './ui/Switch';
-import { ImageWithFallback } from './ui/ImageWithFallback';
-import { theme } from '../styles/theme';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Textarea } from '../../components/ui/Textarea';
+import { Label } from '../../components/ui/Label';
+import { Card, CardContent } from '../../components/ui/Card';
+import { Badge } from '../../components/ui/Badge';
+import { Select } from '../../components/ui/Select';
+import { Icon } from '../../components/ui/Icon';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { Switch } from '../../components/ui/Switch';
+import { ImageWithFallback } from '../../components/ui/ImageWithFallback';
+import { theme } from '../../styles/theme';
 
 interface CreateListingPageProps {
   onBack: () => void;

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
-import { Button } from './ui/Button';
-import { Input } from './ui/Input';
-import { Textarea } from './ui/Textarea';
-import { useAuth } from '../contexts/AuthContext';
-import { theme } from '../styles/theme';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Textarea } from '../ui/Textarea';
+import { useAuth } from '../../contexts/AuthContext';
+import { theme } from '../../styles/theme';
 
 interface UserProfileFormProps {
   onSave?: () => void;

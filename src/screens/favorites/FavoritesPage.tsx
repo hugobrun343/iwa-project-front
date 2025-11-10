@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { SearchBar } from './ui/SearchBar';
-import { Filters } from './ui/Filters';
-import { PageHeader } from './ui/PageHeader';
-import { Button } from './ui/Button';
-import { Badge } from './ui/Badge';
-import { Icon } from './ui/Icon';
-import { ListingCard } from './ListingCard';
-import { theme } from '../styles/theme';
+import { SearchBar } from '../../components/ui/SearchBar';
+import { Filters } from '../../components/ui/Filters';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { Button } from '../../components/ui/Button';
+import { Badge } from '../../components/ui/Badge';
+import { Icon } from '../../components/ui/Icon';
+import { ListingCard } from '../../components/listing/ListingCard';
+import { theme } from '../../styles/theme';
 
 interface Listing {
   id: string;
