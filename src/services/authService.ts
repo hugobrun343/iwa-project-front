@@ -82,7 +82,7 @@ export class AuthService {
         throw new Error('Discovery document incomplete (missing authorization/token endpoints)');
       }
 
-  AuthService.lastIssuer = (discovery as any).issuer || issuerBase;
+      AuthService.lastIssuer = (discovery as any).issuer || issuerBase;
 
       const extraParams: Record<string,string> = {};
       if (useGoogle) {

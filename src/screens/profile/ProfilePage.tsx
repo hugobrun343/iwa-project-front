@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
@@ -11,21 +11,72 @@ import { useAuth } from '../../contexts/AuthContext';
 import { ImageWithFallback } from '../../components/ui/ImageWithFallback';
 import { theme } from '../../styles/theme';
 import { useTranslation } from 'react-i18next';
+import { useAnnouncementsApi } from '../../hooks/api/useAnnouncementsApi';
+import { useApplicationsApi } from '../../hooks/api/useApplicationsApi';
+import { useRatingsApi } from '../../hooks/api/useRatingsApi';
 
 interface ProfilePageProps {
   onNavigate?: (page: string) => void;
 }
 
 export function ProfilePage({ onNavigate }: ProfilePageProps) {
-  const { user, logout } = useAuth();
-  const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
+  const { user, logout, isAuthenticated, accessToken } = useAuth();
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const { t } = useTranslation();
+  const { listAnnouncementsByOwner } = useAnnouncementsApi();
+  const { listApplications } = useApplicationsApi();
+  const { getAverageRating, getRatingCount } = useRatingsApi();
   
+  const [listingsCreated, setListingsCreated] = useState(0);
+  const [guardsCompleted, setGuardsCompleted] = useState(0);
+  const [rating, setRating] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
+  
+  useEffect(() => {
+    const fetchUserStats = async () => {
+      // Ne charger que si l'utilisateur est authentifié avec un token valide
+      if (!isAuthenticated || !user?.username || !accessToken) {
+        return;
+      }
+
+      try {
+        // Fetch announcements count
+        const announcements = await listAnnouncementsByOwner(user.username);
+        if (announcements) {
+          setListingsCreated(announcements.length);
+        }
+
+        // Fetch completed guards/applications count
+        const applications = await listApplications({ guardianUsername: user.username });
+        if (applications) {
+          const completed = applications.filter(app => app.status === 'ACCEPTED');
+          setGuardsCompleted(completed.length);
+        }
+
+        // Fetch average rating
+        const avgRating = await getAverageRating(user.id);
+        if (avgRating !== null && avgRating !== undefined) {
+          setRating(Number(avgRating.toFixed(1)));
+        }
+
+        // Fetch review count
+        const count = await getRatingCount(user.id);
+        if (count !== null && count !== undefined) {
+          setReviewCount(count);
+        }
+      } catch (error) {
+        console.error('Error fetching user stats:', error);
+      }
+    };
+
+    fetchUserStats();
+  }, [user?.username, user?.id, listAnnouncementsByOwner, listApplications, getAverageRating, getRatingCount, isAuthenticated, accessToken]);
+
   const userStats = {
-    listingsCreated: 12,
-    guardsCompleted: 8,
-    rating: 4.9,
-    reviewCount: 15,
+    listingsCreated: listingsCreated,
+    guardsCompleted: guardsCompleted,
+    rating: rating,
+    reviewCount: reviewCount,
   };
 
   const menuItems = [

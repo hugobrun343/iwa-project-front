@@ -110,7 +110,7 @@ export const useAuthActions = () => {
 
       console.log('� Attempting managed AuthRequest flow (no fallback)...');
       const managed = await AuthService.loginWithAuthRequest(useGoogle);
-  const tokens = await AuthService.exchangeCodeForTokens(managed.code, managed.codeVerifier);
+      const tokens = await AuthService.exchangeCodeForTokens(managed.code, managed.codeVerifier);
 
       if (!tokens.access_token) {
         throw new Error('No access token received');

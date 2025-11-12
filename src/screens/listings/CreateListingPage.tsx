@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
@@ -12,13 +13,24 @@ import { Icon } from '../../components/ui/Icon';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Switch } from '../../components/ui/Switch';
 import { ImageWithFallback } from '../../components/ui/ImageWithFallback';
+import { DatePicker } from '../../components/ui/DatePicker';
 import { theme } from '../../styles/theme';
+import { useAuth } from '../../contexts/AuthContext';
+import { useAnnouncementsApi } from '../../hooks/api/useAnnouncementsApi';
+import { AnnouncementPayload } from '../../types/api';
 
 interface CreateListingPageProps {
   onBack: () => void;
+  listingId?: string;
 }
 
-export function CreateListingPage({ onBack }: CreateListingPageProps) {
+export function CreateListingPage({ onBack, listingId }: CreateListingPageProps) {
+  const { user } = useAuth();
+  const { createAnnouncement, updateAnnouncement, getAnnouncementById } = useAnnouncementsApi();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [originalStatus, setOriginalStatus] = useState<string | undefined>(undefined);
+  
   const [formData, setFormData] = useState({
     title: "",
     location: "",
@@ -28,21 +40,34 @@ export function CreateListingPage({ onBack }: CreateListingPageProps) {
     frequency: "",
     description: "",
     instructions: "",
-    guardType: [] as string[],
     photos: [] as string[],
     privatePhotos: [] as string[],
-    hasAnimals: false,
-    hasPlants: false,
-    needsHouseSitting: false,
+    // Care type selections (dynamically added based on guardTypes)
+    homeCare: false,
+    medicalCare: false,
+    companionship: false,
+    mealPreparation: false,
+    transportation: false,
+    housekeeping: false,
+    personalCare: false,
+    medicationManagement: false,
+    physicalTherapy: false,
+    nursingCare: false,
     requiresIdVerification: false,
     availableForEmergency: false,
   });
 
   const guardTypes = [
-    { id: "animals", label: "Animaux", description: "Garde d'animaux domestiques" },
-    { id: "plants", label: "Plantes", description: "Arrosage et entretien" },
-    { id: "house", label: "Logement", description: "Surveillance du domicile" },
-    { id: "mail", label: "Courrier", description: "Relève du courrier" },
+    { id: "homeCare", label: "Home Care", description: "Soins à domicile et assistance quotidienne" },
+    { id: "medicalCare", label: "Medical Care", description: "Soins médicaux et suivi de santé" },
+    { id: "companionship", label: "Companionship", description: "Accompagnement et compagnie" },
+    { id: "mealPreparation", label: "Meal Preparation", description: "Préparation des repas" },
+    { id: "transportation", label: "Transportation", description: "Transport et déplacements" },
+    { id: "housekeeping", label: "Housekeeping", description: "Ménage et entretien du domicile" },
+    { id: "personalCare", label: "Personal Care", description: "Soins personnels et hygiène" },
+    { id: "medicationManagement", label: "Medication Management", description: "Gestion des médicaments" },
+    { id: "physicalTherapy", label: "Physical Therapy", description: "Kinésithérapie et rééducation" },
+    { id: "nursingCare", label: "Nursing Care", description: "Soins infirmiers" },
   ];
 
   const frequencyOptions = [
@@ -55,18 +80,96 @@ export function CreateListingPage({ onBack }: CreateListingPageProps) {
     { value: "Présence continue", label: "Présence continue" },
   ];
 
+  // Load announcement data if editing
+  useEffect(() => {
+    const loadAnnouncement = async () => {
+      if (!listingId) return;
 
-  const addPhoto = () => {
-    const mockPhotos = [
-      "https://images.unsplash.com/photo-1594873604892-b599f847e859?w=400",
-      "https://images.unsplash.com/photo-1619774946815-3e1eeeb445fe?w=400",
-      "https://images.unsplash.com/photo-1605260346600-f98d9cf022a5?w=400"
-    ];
-    const randomPhoto = mockPhotos[Math.floor(Math.random() * mockPhotos.length)];
-    setFormData(prev => ({
-      ...prev,
-      photos: [...prev.photos, randomPhoto]
-    }));
+      try {
+        setIsLoading(true);
+        const announcement = await getAnnouncementById(Number(listingId));
+        
+        if (announcement) {
+          // Store original status to preserve it during edit
+          setOriginalStatus(announcement.status);
+          
+          // Map API response to form data
+          setFormData({
+            title: announcement.title || "",
+            location: announcement.location || "",
+            startDate: announcement.startDate ? announcement.startDate.split('T')[0] : "",
+            endDate: announcement.endDate ? announcement.endDate.split('T')[0] : "",
+            price: announcement.remuneration?.toString() || "",
+            frequency: announcement.visitFrequency || "",
+            description: announcement.description || "",
+            instructions: announcement.specificInstructions || "",
+            photos: announcement.publicImages?.map(img => img.imageUrl) || [],
+            privatePhotos: announcement.specificImages?.map(img => img.imageUrl) || [],
+            // Map care type
+            homeCare: announcement.careTypeLabel === "Home Care",
+            medicalCare: announcement.careTypeLabel === "Medical Care",
+            companionship: announcement.careTypeLabel === "Companionship",
+            mealPreparation: announcement.careTypeLabel === "Meal Preparation",
+            transportation: announcement.careTypeLabel === "Transportation",
+            housekeeping: announcement.careTypeLabel === "Housekeeping",
+            personalCare: announcement.careTypeLabel === "Personal Care",
+            medicationManagement: announcement.careTypeLabel === "Medication Management",
+            physicalTherapy: announcement.careTypeLabel === "Physical Therapy",
+            nursingCare: announcement.careTypeLabel === "Nursing Care",
+            requiresIdVerification: announcement.identityVerificationRequired || false,
+            availableForEmergency: announcement.urgentRequest || false,
+          });
+        }
+      } catch (error) {
+        console.error('Error loading announcement:', error);
+        alert('Erreur lors du chargement de l\'annonce');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadAnnouncement();
+  }, [listingId, getAnnouncementById]);
+
+
+  const requestMediaLibraryPermissions = async () => {
+    if (Platform.OS !== 'web') {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission requise',
+          'Nous avons besoin de votre permission pour accéder à vos photos.',
+          [{ text: 'OK' }]
+        );
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const addPhoto = async () => {
+    const hasPermission = await requestMediaLibraryPermissions();
+    if (!hasPermission) return;
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const imageUri = result.assets[0].uri;
+        setFormData(prev => ({
+          ...prev,
+          photos: [...prev.photos, imageUri]
+        }));
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner l\'image');
+    }
   };
 
   const removePhoto = (index: number) => {
@@ -76,17 +179,29 @@ export function CreateListingPage({ onBack }: CreateListingPageProps) {
     }));
   };
 
-  const addPrivatePhoto = () => {
-    const mockPrivatePhotos = [
-      "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400",
-      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400",
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400"
-    ];
-    const randomPhoto = mockPrivatePhotos[Math.floor(Math.random() * mockPrivatePhotos.length)];
-    setFormData(prev => ({
-      ...prev,
-      privatePhotos: [...prev.privatePhotos, randomPhoto]
-    }));
+  const addPrivatePhoto = async () => {
+    const hasPermission = await requestMediaLibraryPermissions();
+    if (!hasPermission) return;
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const imageUri = result.assets[0].uri;
+        setFormData(prev => ({
+          ...prev,
+          privatePhotos: [...prev.privatePhotos, imageUri]
+        }));
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner l\'image');
+    }
   };
 
   const removePrivatePhoto = (index: number) => {
@@ -96,23 +211,139 @@ export function CreateListingPage({ onBack }: CreateListingPageProps) {
     }));
   };
 
-  const handleSubmit = () => {
-    console.log("Annonce créée:", formData);
-    onBack();
+  const handleSubmit = async () => {
+    if (!user?.username) {
+      console.error('User not authenticated');
+      return;
+    }
+
+    // Validation
+    if (!formData.title || !formData.location || !formData.startDate || !formData.price) {
+      alert('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      // Map local form data to API expected shape
+      const selectedCareTypes = guardTypes
+        .filter((t) => (formData as any)[t.id])
+        .map((t) => t.label);
+
+      // Backend only accepts a single careTypeLabel, not multiple
+      if (selectedCareTypes.length === 0) {
+        alert('Veuillez sélectionner au moins un type de garde');
+        return;
+      }
+
+      if (selectedCareTypes.length > 1) {
+        alert('Veuillez sélectionner un seul type de garde. Seul le premier sera utilisé.');
+      }
+
+      // DatePicker already returns dates in YYYY-MM-DD format
+      const toIsoDate = (input: string): string | undefined => {
+        if (!input) return undefined;
+        // DatePicker returns YYYY-MM-DD format, so we can use it directly
+        if (/^\d{4}-\d{2}-\d{2}$/.test(input)) {
+          return input;
+        }
+        return undefined;
+      };
+
+      // Convert photo URLs to ImageDto format
+      const publicImages = formData.photos.length > 0 
+        ? formData.photos.map(imageUrl => ({ imageUrl }))
+        : undefined;
+      
+      const specificImages = formData.privatePhotos.length > 0
+        ? formData.privatePhotos.map(imageUrl => ({ imageUrl }))
+        : undefined;
+
+      const startDate = toIsoDate(formData.startDate);
+      if (!startDate) {
+        alert('Veuillez entrer une date de début valide (format: JJ/MM/AAAA)');
+        return;
+      }
+
+      const apiPayload: AnnouncementPayload = {
+        ownerUsername: user.username,
+        title: formData.title,
+        location: formData.location,
+        description: formData.description || '',
+        specificInstructions: formData.instructions || undefined,
+        careTypeLabel: selectedCareTypes[0], // Backend only accepts a single care type label
+        startDate: startDate,
+        endDate: toIsoDate(formData.endDate),
+        visitFrequency: formData.frequency || undefined,
+        remuneration: parseFloat(formData.price) || 0,
+        identityVerificationRequired: formData.requiresIdVerification || false,
+        urgentRequest: formData.availableForEmergency || false,
+        status: listingId ? originalStatus : 'PUBLISHED', // Preserve status when editing
+        publicImages: publicImages,
+        specificImages: specificImages,
+      };
+
+      if (listingId) {
+        // Update existing announcement
+        console.log('Updating announcement with payload (API format):', apiPayload);
+        const result = await updateAnnouncement(Number(listingId), apiPayload);
+        
+        if (result) {
+          console.log('Annonce mise à jour avec succès:', result);
+          alert('Annonce mise à jour avec succès!');
+          onBack();
+        }
+      } else {
+        // Create new announcement
+        console.log('Creating announcement with payload (API format):', apiPayload);
+        const result = await createAnnouncement(apiPayload);
+        
+        if (result) {
+          console.log('Annonce créée avec succès:', result);
+          alert('Annonce créée avec succès!');
+          onBack();
+        }
+      }
+    } catch (error) {
+      console.error(listingId ? 'Erreur lors de la mise à jour de l\'annonce:' : 'Erreur lors de la création de l\'annonce:', error);
+      alert(listingId ? 'Erreur lors de la mise à jour de l\'annonce' : 'Erreur lors de la création de l\'annonce');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  if (isLoading && listingId) {
+    return (
+      <View style={styles.container}>
+        <PageHeader 
+          title={listingId ? "Modifier l'annonce" : "Créer une annonce"}
+          icon={listingId ? "create" : "add"}
+          showBackButton={true}
+          onBack={onBack}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.loadingText}>Chargement de l'annonce...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <PageHeader 
-        title="Créer une annonce"
-        icon="add"
+        title={listingId ? "Modifier l'annonce" : "Créer une annonce"}
+        icon={listingId ? "create" : "add"}
+        showBackButton={true}
+        onBack={onBack}
       />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Title */}
         <Card style={styles.sectionCard}>
           <CardContent>
-            <Label>Titre de l'annonce</Label>
+            <Label required>Titre de l'annonce</Label>
             <Input
               placeholder="Ex: Garde de mes 2 chats pendant les vacances"
               value={formData.title}
@@ -124,7 +355,7 @@ export function CreateListingPage({ onBack }: CreateListingPageProps) {
         {/* Location */}
         <Card style={styles.sectionCard}>
           <CardContent>
-            <Label>Localisation</Label>
+            <Label required>Localisation</Label>
             <View style={styles.locationInputWrapper}>
               <Icon name="MapPin" size={16} color={theme.colors.mutedForeground} style={styles.locationIcon} />
               <Input
@@ -168,28 +399,22 @@ export function CreateListingPage({ onBack }: CreateListingPageProps) {
             <Label>Période de garde</Label>
             <View style={styles.dateRow}>
               <View style={styles.dateField}>
-                <Label style={styles.dateLabel}>Date de début</Label>
-                <View style={styles.dateInputWrapper}>
-                  <Icon name="Calendar" size={16} color={theme.colors.mutedForeground} style={styles.dateIcon} />
-                  <Input
-                    placeholder="JJ/MM/AAAA"
-                    style={styles.dateInput}
-                    value={formData.startDate}
-                    onChangeText={(text) => setFormData(prev => ({ ...prev, startDate: text }))}
-                  />
-                </View>
+                <Label style={styles.dateLabel} required>Date de début</Label>
+                <DatePicker
+                  value={formData.startDate}
+                  onDateChange={(date) => setFormData(prev => ({ ...prev, startDate: date }))}
+                  placeholder="Sélectionner une date"
+                  minimumDate={new Date()}
+                />
               </View>
               <View style={styles.dateField}>
                 <Label style={styles.dateLabel}>Date de fin</Label>
-                <View style={styles.dateInputWrapper}>
-                  <Icon name="Calendar" size={16} color={theme.colors.mutedForeground} style={styles.dateIcon} />
-                  <Input
-                    placeholder="JJ/MM/AAAA"
-                    style={styles.dateInput}
-                    value={formData.endDate}
-                    onChangeText={(text) => setFormData(prev => ({ ...prev, endDate: text }))}
-                  />
-                </View>
+                <DatePicker
+                  value={formData.endDate}
+                  onDateChange={(date) => setFormData(prev => ({ ...prev, endDate: date }))}
+                  placeholder="Sélectionner une date"
+                  minimumDate={formData.startDate ? new Date(formData.startDate + 'T00:00:00') : new Date()}
+                />
               </View>
             </View>
           </CardContent>
@@ -218,15 +443,24 @@ export function CreateListingPage({ onBack }: CreateListingPageProps) {
         {/* Price */}
         <Card style={styles.sectionCard}>
           <CardContent>
-            <Label>Rémunération proposée</Label>
+            <Label required>Rémunération proposée</Label>
             <View style={styles.priceWrapper}>
               <Icon name="Euro" size={16} color={theme.colors.mutedForeground} style={styles.priceIcon} />
               <Input
                 placeholder="0"
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 style={styles.priceInput}
                 value={formData.price}
-                onChangeText={(text) => setFormData(prev => ({ ...prev, price: text }))}
+                onChangeText={(text) => {
+                  // Only allow numbers and one decimal point
+                  const cleaned = text.replace(/[^0-9.]/g, '');
+                  // Ensure only one decimal point
+                  const parts = cleaned.split('.');
+                  const formatted = parts.length > 2 
+                    ? parts[0] + '.' + parts.slice(1).join('')
+                    : cleaned;
+                  setFormData(prev => ({ ...prev, price: formatted }));
+                }}
               />
               <Text style={styles.priceSuffix}>/jour</Text>
             </View>
@@ -267,7 +501,7 @@ export function CreateListingPage({ onBack }: CreateListingPageProps) {
               {formData.photos.map((photo, index) => (
                 <View key={index} style={styles.photoItem}>
                   <ImageWithFallback
-                    src={photo}
+                    source={{ uri: photo }}
                     style={styles.photoImage}
                   />
                   <TouchableOpacity
@@ -303,7 +537,7 @@ export function CreateListingPage({ onBack }: CreateListingPageProps) {
               {formData.privatePhotos.map((photo, index) => (
                 <View key={index} style={styles.photoItem}>
                   <ImageWithFallback
-                    src={photo}
+                    source={{ uri: photo }}
                     style={styles.photoImage}
                   />
                   <TouchableOpacity
@@ -361,13 +595,26 @@ export function CreateListingPage({ onBack }: CreateListingPageProps) {
         <View style={styles.submitContainer}>
           <TouchableOpacity 
             onPress={handleSubmit}
-            style={styles.submitButton}
+            style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
+            disabled={isSubmitting}
           >
-            <Icon name="Send" size={16} color={theme.colors.primaryForeground} />
-            <Text style={styles.submitButtonText}>Publier l'annonce</Text>
+            {isSubmitting ? (
+              <>
+                <Text style={styles.submitButtonText}>
+                  {listingId ? 'Mise à jour en cours...' : 'Publication en cours...'}
+                </Text>
+              </>
+            ) : (
+              <>
+                <Icon name="Send" size={16} color={theme.colors.primaryForeground} />
+                <Text style={styles.submitButtonText}>
+                  {listingId ? 'Mettre à jour l\'annonce' : 'Publier l\'annonce'}
+                </Text>
+              </>
+            )}
           </TouchableOpacity>
           <Text style={styles.submitHelpText}>
-            Votre annonce sera visible après validation
+            {listingId ? 'Vos modifications seront appliquées immédiatement' : 'Votre annonce sera visible immédiatement'}
           </Text>
         </View>
       </ScrollView>
@@ -622,9 +869,23 @@ const styles = StyleSheet.create({
     fontWeight: theme.fontWeight.medium,
     color: theme.colors.primaryForeground,
   },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
   submitHelpText: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.mutedForeground,
     textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+    paddingVertical: theme.spacing['6xl'],
+  },
+  loadingText: {
+    fontSize: theme.fontSize.base,
+    color: theme.colors.mutedForeground,
   },
 });

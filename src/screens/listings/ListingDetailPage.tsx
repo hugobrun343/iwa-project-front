@@ -19,6 +19,7 @@ interface ListingDetailPageProps {
     frequency: string;
     description: string;
     imageUrl: string;
+    publicImages?: string[];
     tags: string[];
     isLiked?: boolean;
   };
@@ -30,12 +31,10 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isLiked, setIsLiked] = useState(listing.isLiked || false);
 
-  // Mock images for carousel
-  const images = [
-    listing.imageUrl,
-    "https://images.unsplash.com/photo-1662454419622-a41092ecd245?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
-    "https://images.unsplash.com/photo-1652882860938-f90aa298e644?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400"
-  ];
+  // Use public images from announcement, fallback to listing.imageUrl if no images
+  const images = listing.publicImages && listing.publicImages.length > 0 
+    ? listing.publicImages 
+    : [listing.imageUrl];
 
   const amenities = [
     { icon: "Settings", label: "WiFi gratuit" },
@@ -54,7 +53,7 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
         {/* Header with image */}
         <View style={styles.imageContainer}>
           <ImageWithFallback
-            src={images[currentImageIndex]}
+            source={{ uri: images[currentImageIndex] }}
             style={styles.image}
           />
           

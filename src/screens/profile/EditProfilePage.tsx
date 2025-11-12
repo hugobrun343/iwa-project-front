@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
@@ -9,24 +9,40 @@ import { Label } from '../../components/ui/Label';
 import { Icon } from '../../components/ui/Icon';
 import { ImageWithFallback } from '../../components/ui/ImageWithFallback';
 import { theme } from '../../styles/theme';
+import { useAuth } from '../../contexts/AuthContext';
+import { useUserApi } from '../../hooks/api/useUserApi';
 
 interface EditProfilePageProps {
   onBack: () => void;
 }
 
 export function EditProfilePage({ onBack }: EditProfilePageProps) {
+  const { user, updateUserProfile } = useAuth();
+  const { 
+    getMyProfile, 
+    updateMyProfile, 
+    getMyLanguages, 
+    updateMyLanguages,
+    getMySpecialisations,
+    updateMySpecialisations,
+    isLoading: apiLoading 
+  } = useUserApi();
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  
   const [profile, setProfile] = useState({
-    firstName: "Sophie",
-    lastName: "Martin",
-    email: "sophie.martin@example.com",
-    phone: "+33 6 12 34 56 78",
-    bio: "Passionnée d'animaux et de plantes, j'adore prendre soin des compagnons de vos amis à quatre pattes et de vos plantes vertes. Expérience de 3 ans dans la garde d'animaux.",
-    location: "Paris, France",
-    avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b65c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
-    languages: ["Français", "Anglais"],
-    skills: ["Chiens", "Chats", "Plantes d'intérieur", "Arrosage"],
-    availability: "Weekends et vacances scolaires",
-    priceRange: "20-50€ par jour"
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    bio: "",
+    location: "",
+    avatar: "",
+    languages: [] as string[],
+    skills: [] as string[],
+    availability: "",
+    priceRange: ""
   });
 
   const [notifications, setNotifications] = useState({
@@ -43,11 +59,161 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
     locationVisible: true
   });
 
-  const handleSave = () => {
-    // Save profile logic
-    console.log('Saving profile...', profile);
-    onBack();
+  // Load user data on mount
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!user) return;
+
+      try {
+        setIsLoading(true);
+        
+        // Load profile data
+        const profileData = await getMyProfile();
+        const languagesData = await getMyLanguages();
+        const specialisationsData = await getMySpecialisations();
+
+        if (profileData) {
+          setProfile({
+            firstName: profileData.firstName || "",
+            lastName: profileData.lastName || "",
+            email: profileData.email || user.email || "",
+            phone: profileData.phoneNumber || "",
+            bio: profileData.description || "",
+            location: profileData.location || "",
+            avatar: profileData.profilePhoto || "",
+            languages: languagesData?.map(l => l.label) || [],
+            skills: specialisationsData?.map(s => s.label) || [],
+            availability: "", // Not available in API yet
+            priceRange: "" // Not available in API yet
+          });
+        }
+
+        // Load preferences if available
+        if (profileData?.preferences) {
+          try {
+            // Backend stores preferences as a JSON string
+            const prefsString = typeof profileData.preferences === 'string' 
+              ? profileData.preferences 
+              : JSON.stringify(profileData.preferences);
+            const prefs = JSON.parse(prefsString);
+            
+            if (prefs.notifications) {
+              setNotifications({
+                messages: prefs.notifications.messages ?? true,
+                bookings: prefs.notifications.bookings ?? true,
+                marketing: prefs.notifications.marketing ?? false,
+                reviews: prefs.notifications.reviews ?? true
+              });
+            }
+            if (prefs.privacy) {
+              setPrivacy({
+                profileVisible: prefs.privacy.profileVisible ?? true,
+                phoneVisible: prefs.privacy.phoneVisible ?? false,
+                emailVisible: prefs.privacy.emailVisible ?? false,
+                locationVisible: prefs.privacy.locationVisible ?? true
+              });
+            }
+          } catch (error) {
+            console.error('Error parsing preferences:', error);
+            // Use default preferences if parsing fails
+          }
+        }
+      } catch (error) {
+        console.error('Error loading profile:', error);
+        Alert.alert('Erreur', 'Impossible de charger les données du profil');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, [user, getMyProfile, getMyLanguages, getMySpecialisations]);
+
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      setIsSaving(true);
+
+      // Update profile
+      const profileUpdates: any = {
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        phoneNumber: profile.phone,
+        location: profile.location,
+        description: profile.bio,
+        profilePhoto: profile.avatar,
+      };
+
+      // Serialize preferences as JSON string (backend expects String, not object)
+      const preferencesObj = {
+        notifications,
+        privacy
+      };
+      profileUpdates.preferences = JSON.stringify(preferencesObj);
+
+      // Remove empty fields (but keep preferences even if empty)
+      Object.keys(profileUpdates).forEach(key => {
+        if (key === 'preferences') return; // Always send preferences
+        if (profileUpdates[key] === "" || profileUpdates[key] === undefined) {
+          delete profileUpdates[key];
+        }
+      });
+
+      const updatedProfile = await updateMyProfile(profileUpdates);
+      
+      // Update languages
+      if (profile.languages.length > 0) {
+        await updateMyLanguages(profile.languages);
+      }
+
+      // Update specialisations
+      if (profile.skills.length > 0) {
+        await updateMySpecialisations(profile.skills);
+      }
+
+      if (updatedProfile) {
+        // Update AuthContext with new profile data
+        await updateUserProfile({
+          firstName: updatedProfile.firstName,
+          lastName: updatedProfile.lastName,
+          telephone: updatedProfile.phoneNumber,
+          localisation: updatedProfile.location,
+          description: updatedProfile.description,
+          photo_profil: updatedProfile.profilePhoto,
+          email: updatedProfile.email,
+        });
+
+        Alert.alert('Succès', 'Profil mis à jour avec succès');
+        onBack();
+      }
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      Alert.alert('Erreur', 'Impossible de sauvegarder le profil');
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <TouchableOpacity onPress={onBack} style={styles.backButton}>
+              <Icon name="arrow-back" size={24} color={theme.colors.foreground} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Modifier le profil</Text>
+            <View style={styles.spacer} />
+          </View>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.loadingText}>Chargement du profil...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -58,8 +224,10 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
             <Icon name="arrow-back" size={24} color={theme.colors.foreground} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Modifier le profil</Text>
-          <TouchableOpacity onPress={handleSave}>
-            <Text style={styles.saveButton}>Sauver</Text>
+          <TouchableOpacity onPress={handleSave} disabled={isSaving}>
+            <Text style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}>
+              {isSaving ? 'Sauvegarde...' : 'Sauver'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -69,11 +237,17 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
         <Card style={styles.photoCard}>
           <CardContent style={styles.photoContent}>
             <View style={styles.photoSection}>
-              <ImageWithFallback
-                src={profile.avatar}
-                style={styles.profilePhoto}
-                alt={`${profile.firstName} ${profile.lastName}`}
-              />
+              {profile.avatar ? (
+                <ImageWithFallback
+                  source={{ uri: profile.avatar }}
+                  style={styles.profilePhoto}
+                  fallbackIcon="User"
+                />
+              ) : (
+                <View style={[styles.profilePhoto, styles.profilePhotoPlaceholder]}>
+                  <Icon name="User" size={40} color={theme.colors.mutedForeground} />
+                </View>
+              )}
               <View style={styles.photoActions}>
                 <Button variant="outline" size="sm" style={styles.photoButton}>
                   <Icon name="camera" size={16} color={theme.colors.primary} />
@@ -327,7 +501,7 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
         </Card>
 
         {/* Danger Zone */}
-        <Card style={[styles.sectionCard, styles.dangerCard]}>
+        <Card style={StyleSheet.flatten([styles.sectionCard, styles.dangerCard])}>
           <CardContent style={styles.sectionContent}>
             <Text style={styles.sectionTitle}>Zone de danger</Text>
             
@@ -345,8 +519,16 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
 
         {/* Save Button */}
         <View style={styles.saveSection}>
-          <Button onPress={handleSave} style={styles.saveButtonLarge}>
-            <Text style={styles.saveButtonText}>Sauvegarder les modifications</Text>
+          <Button 
+            onPress={handleSave} 
+            style={StyleSheet.flatten([styles.saveButtonLarge, isSaving && styles.saveButtonDisabled])}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <Text style={styles.saveButtonText}>Sauvegarder les modifications</Text>
+            )}
           </Button>
         </View>
       </ScrollView>
@@ -499,5 +681,27 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: '#ffffff',
     fontWeight: theme.fontWeight.medium,
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+    paddingVertical: theme.spacing['6xl'],
+  },
+  loadingText: {
+    fontSize: theme.fontSize.base,
+    color: theme.colors.mutedForeground,
+  },
+  spacer: {
+    width: 60, // Same width as back button for centering
+  },
+  profilePhotoPlaceholder: {
+    backgroundColor: theme.colors.muted,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

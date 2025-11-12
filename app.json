@@ -43,7 +43,14 @@
     },
     "plugins": [
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "L'application a besoin d'accéder à vos photos pour ajouter des images aux annonces.",
+          "cameraPermission": "L'application a besoin d'accéder à votre caméra pour prendre des photos."
+        }
+      ]
     ]
   }
 }

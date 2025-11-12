@@ -26,77 +26,73 @@ import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { theme } from './src/styles/theme';
 import './src/i18n';
 import { useTranslation } from 'react-i18next';
-
-const mockListings = [
-  {
-    id: "1",
-    title: "Appartement moderne avec vue - 2 chats adorables",
-    location: "Paris 11ème, 0.8 km",
-    price: 35,
-    period: "5-12 Jan",
-    frequency: "2 fois par jour",
-    description: "Magnifique appartement lumineux avec deux chats très câlins. Arrosage de quelques plantes inclus. Quartier calme et bien desservi.",
-    imageUrl: "https://images.unsplash.com/photo-1594873604892-b599f847e859?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBhcGFydG1lbnQlMjBpbnRlcmlvcnxlbnwxfHx8fDE3NTg2MDQzNTF8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-    tags: ["Animaux", "Plantes"],
-    isLiked: true,
-    rating: 4.9,
-    reviewCount: 15,
-  },
-  {
-    id: "2",
-    title: "Garde de Minou pendant les vacances",
-    location: "Levallois-Perret, 2.1 km",
-    price: 25,
-    period: "15-22 Jan",
-    frequency: "1 fois par jour",
-    description: "Mon chat Minou a besoin d'attention pendant mon absence. Il est très affectueux et facile à vivre. Petit jardin avec quelques plantes.",
-    imageUrl: "https://images.unsplash.com/photo-1619774946815-3e1eeeb445fe?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjdXRlJTIwY2F0JTIwc2xlZXBpbmd8ZW58MXx8fHwxNzU4NjExODIxfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-    tags: ["Animaux", "Week-end"],
-    isLiked: false,
-    rating: 4.7,
-    reviewCount: 8,
-  },
-  {
-    id: "3",
-    title: "Jungle urbaine - Arrosage intensif requis",
-    location: "Belleville, 1.5 km",
-    price: 20,
-    period: "3-10 Fév",
-    frequency: "1 jour sur 2",
-    description: "Appartement rempli de plantes tropicales qui nécessitent des soins particuliers. Instructions détaillées fournies. Aucun animal.",
-    imageUrl: "https://images.unsplash.com/photo-1605260346600-f98d9cf022a5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxob3VzZSUyMHBsYW50cyUyMGluZG9vcnxlbnwxfHx8fDE3NTg2MTE4MjJ8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-    tags: ["Plantes", "Longue durée"],
-    isLiked: true,
-    rating: 4.8,
-    reviewCount: 12,
-  },
-  {
-    id: "4",
-    title: "Golden Retriever énergique - Maison avec jardin",
-    location: "Vincennes, 3.2 km",
-    price: 45,
-    period: "20-25 Jan",
-    frequency: "3 fois par jour",
-    description: "Max est un golden retriever de 3 ans très joueur. Il a besoin de sorties régulières et adore les câlins. Maison avec grand jardin sécurisé.",
-    imageUrl: "https://images.unsplash.com/photo-1687211818108-667d028f1ae4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxnb2xkZW4lMjByZXRyaWV2ZXIlMjBkb2d8ZW58MXx8fHwxNzU4NjExODI4fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-    tags: ["Animaux", "Jardin"],
-    isLiked: true,
-    rating: 4.9,
-    reviewCount: 23,
-  },
-];
+import { useAnnouncementsApi } from './src/hooks/api/useAnnouncementsApi';
+import { useFavoritesApi } from './src/hooks/api/useFavoritesApi';
 
 // Main App Component with Authentication
 function MainApp() {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user, accessToken } = useAuth();
   const { t } = useTranslation();
   const enableSimulatedLogin = process.env.EXPO_PUBLIC_ENABLE_SIMULATED_LOGIN === 'true';
   const [activeTab, setActiveTab] = useState("home");
   const [currentPage, setCurrentPage] = useState("home");
   const [selectedListing, setSelectedListing] = useState(null);
-  const [listings, setListings] = useState(mockListings);
-  const [filteredListings, setFilteredListings] = useState(mockListings);
+  const [editingListingId, setEditingListingId] = useState<string | null>(null);
+  const [listings, setListings] = useState([]);
+  const [filteredListings, setFilteredListings] = useState([]);
   const [navigationStack, setNavigationStack] = useState(["home"]); // Stack pour navigation hiérarchique
+  const [isLoadingListings, setIsLoadingListings] = useState(true);
+
+  const { listAnnouncements } = useAnnouncementsApi();
+  const { getFavorites, checkFavorite, addFavorite, removeFavorite } = useFavoritesApi();
+
+  // Load announcements on mount
+  React.useEffect(() => {
+    const loadAnnouncements = async () => {
+      if (!isAuthenticated || !accessToken) return;
+      
+      try {
+        setIsLoadingListings(true);
+        const announcements = await listAnnouncements({ status: 'PUBLISHED' });
+        
+        if (announcements) {
+          // Transform API data to app format
+          const formattedListings = await Promise.all(announcements.map(async (ann) => {
+            let isFavorite = false;
+            if (user?.username) {
+              const favCheck = await checkFavorite(ann.id);
+              isFavorite = favCheck ? favCheck.isFavorite : false;
+            }
+            
+            return {
+              id: String(ann.id),
+              title: ann.title,
+              location: ann.location,
+              price: ann.remuneration || 0,
+              period: ann.startDate ? new Date(ann.startDate).toLocaleDateString('fr-FR') : '',
+              frequency: ann.visitFrequency || "À discuter",
+              description: ann.description,
+              imageUrl: ann.publicImages?.[0]?.imageUrl || "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba",
+              publicImages: ann.publicImages?.map(img => img.imageUrl) || [],
+              tags: ann.careTypeLabel ? [ann.careTypeLabel] : [],
+              isLiked: isFavorite,
+              rating: 4.5,
+              reviewCount: 0,
+            };
+          }));
+          
+          setListings(formattedListings);
+          setFilteredListings(formattedListings);
+        }
+      } catch (error) {
+        console.error('Error loading announcements:', error);
+      } finally {
+        setIsLoadingListings(false);
+      }
+    };
+
+    loadAnnouncements();
+  }, [isAuthenticated, accessToken, listAnnouncements, user?.username]);
 
   // Show loading screen while checking authentication
   if (isLoading) {
@@ -121,14 +117,32 @@ function MainApp() {
     );
   }
 
-  const toggleLike = (id: string) => {
-    const updatedListings = listings.map(listing => 
-      listing.id === id 
-        ? { ...listing, isLiked: !listing.isLiked }
-        : listing
-    );
-    setListings(updatedListings);
-    setFilteredListings(updatedListings);
+  const toggleLike = async (id: string) => {
+    try {
+      const listing = listings.find(l => l.id === id);
+      if (!listing) return;
+
+      const announcementId = Number(id);
+      
+      if (listing.isLiked) {
+        // Remove from favorites
+        await removeFavorite(announcementId);
+      } else {
+        // Add to favorites
+        await addFavorite({ announcementId });
+      }
+
+      // Update local state
+      const updatedListings = listings.map(l => 
+        l.id === id 
+          ? { ...l, isLiked: !l.isLiked }
+          : l
+      );
+      setListings(updatedListings);
+      setFilteredListings(updatedListings);
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+    }
   };
 
   const handleSearch = (query: string) => {
@@ -220,7 +234,11 @@ function MainApp() {
       case "create":
         return (
           <CreateListingPage
-            onBack={handleBack}
+            onBack={() => {
+              setEditingListingId(null);
+              handleBack();
+            }}
+            listingId={editingListingId || undefined}
           />
         );
       
@@ -228,7 +246,14 @@ function MainApp() {
         return (
           <MyListingsPage
             onBack={handleBack}
-            onCreateListing={() => handleNavigate("create")}
+            onCreateListing={() => {
+              setEditingListingId(null);
+              handleNavigate("create");
+            }}
+            onEditListing={(listingId) => {
+              setEditingListingId(listingId);
+              handleNavigate("create");
+            }}
           />
         );
       

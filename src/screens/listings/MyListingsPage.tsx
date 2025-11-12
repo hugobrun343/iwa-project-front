@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
@@ -8,82 +8,72 @@ import { Icon } from '../../components/ui/Icon';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { ImageWithFallback } from '../../components/ui/ImageWithFallback';
 import { theme } from '../../styles/theme';
+import { useAuth } from '../../contexts/AuthContext';
+import { useAnnouncementsApi } from '../../hooks/api/useAnnouncementsApi';
+import { useApplicationsApi } from '../../hooks/api/useApplicationsApi';
 
 interface MyListingsPageProps {
   onBack: () => void;
   onCreateListing: () => void;
+  onEditListing?: (listingId: string) => void;
 }
 
-export function MyListingsPage({ onBack, onCreateListing }: MyListingsPageProps) {
+export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyListingsPageProps) {
   const [selectedTab, setSelectedTab] = useState("active");
+  const [userListings, setUserListings] = useState<any>({ active: [], draft: [], completed: [] });
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const { user, isAuthenticated, accessToken } = useAuth();
+  const { listAnnouncementsByOwner } = useAnnouncementsApi();
+  const { listApplications } = useApplicationsApi();
 
-  // Mock data for user listings
-  const userListings = {
-    active: [
-      {
-        id: "1",
-        title: "Appartement moderne avec vue - 2 chats adorables",
-        location: "Paris 11ème",
-        price: 35,
-        period: "5-12 Jan",
-        frequency: "2 fois par jour",
-        status: "active",
-        applications: 3,
-        views: 24,
-        imageUrl: "https://images.unsplash.com/photo-1594873604892-b599f847e859?w=300",
-        tags: ["Animaux", "Plantes"],
-        createdAt: "Il y a 2 jours",
-      },
-      {
-        id: "2",
-        title: "Jungle urbaine - Arrosage intensif requis",
-        location: "Belleville",
-        price: 20,
-        period: "3-10 Fév",
-        frequency: "1 jour sur 2",
-        status: "active",
-        applications: 1,
-        views: 12,
-        imageUrl: "https://images.unsplash.com/photo-1605260346600-f98d9cf022a5?w=300",
-        tags: ["Plantes", "Longue durée"],
-        createdAt: "Il y a 5 jours",
-      },
-    ],
-    draft: [
-      {
-        id: "3",
-        title: "Garde Minou - Brouillon",
-        location: "Non définie",
-        price: 0,
-        period: "À définir",
-        frequency: "Non définie",
-        status: "draft",
-        applications: 0,
-        views: 0,
-        imageUrl: null,
-        tags: [],
-        createdAt: "Il y a 3 jours",
-      },
-    ],
-    completed: [
-      {
-        id: "4",
-        title: "Golden Retriever énergique - Maison avec jardin",
-        location: "Vincennes",
-        price: 45,
-        period: "15-20 Déc",
-        frequency: "3 fois par jour",
-        status: "completed",
-        applications: 8,
-        views: 45,
-        imageUrl: "https://images.unsplash.com/photo-1687211818108-667d028f1ae4?w=300",
-        tags: ["Animaux", "Jardin"],
-        createdAt: "Il y a 1 mois",
-        guardian: "Marc Dubois",
-        rating: 5,
-      },
-    ],
-  };
+  useEffect(() => {
+    const loadUserListings = async () => {
+      if (!isAuthenticated || !user?.username || !accessToken) return;
+
+      try {
+        setIsLoading(true);
+        const announcements = await listAnnouncementsByOwner(user.username);
+        
+        if (announcements) {
+          // Get application counts for each announcement
+          const listingsWithStats = await Promise.all(announcements.map(async (ann) => {
+            const applications = await listApplications({ announcementId: ann.id });
+            
+            return {
+              id: String(ann.id),
+              title: ann.title,
+              location: ann.location,
+              price: ann.remuneration || 0,
+              period: ann.startDate ? new Date(ann.startDate).toLocaleDateString('fr-FR') : '',
+              frequency: ann.visitFrequency || "À discuter",
+              status: ann.status?.toLowerCase() || 'pending',
+              applications: applications?.length || 0,
+              views: 0, // Not available in API yet
+              imageUrl: ann.publicImages?.[0]?.imageUrl || null,
+              tags: ann.careTypeLabel ? [ann.careTypeLabel] : [],
+              createdAt: ann.createdAt ? new Date(ann.createdAt).toLocaleDateString('fr-FR') : 'Récemment',
+            };
+          }));
+
+          // Group by status
+          const grouped = {
+            active: listingsWithStats.filter(l => l.status === 'published'),
+            draft: listingsWithStats.filter(l => l.status === 'in_progress'),
+            completed: listingsWithStats.filter(l => l.status === 'completed'),
+          };
+
+          setUserListings(grouped);
+        }
+      } catch (error) {
+        console.error('Error loading user listings:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadUserListings();
+  }, [user?.username, isAuthenticated, accessToken, listAnnouncementsByOwner, listApplications]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -106,7 +96,7 @@ export function MyListingsPage({ onBack, onCreateListing }: MyListingsPageProps)
             <View style={styles.listingImageContainer}>
               {listing.imageUrl ? (
                 <ImageWithFallback
-                  src={listing.imageUrl}
+                  source={{ uri: listing.imageUrl }}
                   style={styles.listingImage}
                 />
               ) : (
@@ -182,7 +172,12 @@ export function MyListingsPage({ onBack, onCreateListing }: MyListingsPageProps)
         <View style={styles.listingFooter}>
           <Text style={styles.createdAt}>Créée {listing.createdAt}</Text>
           <View style={styles.actionButtons}>
-            <Button variant="outline" size="sm" style={styles.editButton}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              style={styles.editButton}
+              onPress={() => onEditListing?.(listing.id)}
+            >
               <Icon name="create" size={16} color={theme.colors.foreground} style={styles.buttonIcon} />
               <Text style={styles.buttonText}>Modifier</Text>
             </Button>
