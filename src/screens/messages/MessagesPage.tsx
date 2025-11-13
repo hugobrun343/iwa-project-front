@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -7,11 +7,15 @@ import { Badge } from '../../components/ui/Badge';
 import { Icon } from '../../components/ui/Icon';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { theme } from '../../styles/theme';
+import { useChatApi } from '../../hooks/api/useChatApi';
+import { useAuth } from '../../contexts/AuthContext';
+import { DiscussionDto, MessageDto, PublicUserDto } from '../../types/api';
+import { useUserApi } from '../../hooks/api/useUserApi';
 
-interface Conversation {
-  id: string;
+interface ConversationItem {
+  id: number;
+  counterpartId: string;
   name: string;
-  avatar: string;
   lastMessage: string;
   timestamp: string;
   unreadCount: number;
@@ -19,12 +23,11 @@ interface Conversation {
   listingTitle?: string;
 }
 
-interface Message {
-  id: string;
+interface UiMessage {
+  id: number;
   text: string;
   timestamp: string;
   isOwn: boolean;
-  isRead: boolean;
 }
 
 interface MessagesPageProps {
@@ -32,147 +35,423 @@ interface MessagesPageProps {
 }
 
 export function MessagesPage({ onBack }: MessagesPageProps) {
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [newMessage, setNewMessage] = useState("");
+  const { user } = useAuth();
+  const {
+    getMyDiscussions,
+    getDiscussionMessages,
+    sendMessageToDiscussion,
+  } = useChatApi();
+  const { getUserByUsername } = useUserApi();
 
-  const conversations: Conversation[] = [
-    {
-      id: "1",
-      name: "Marie Dubois",
-      avatar: "https://images.unsplash.com/photo-1590905775253-a4f0f3c426ff?w=100",
-      lastMessage: "Parfait ! Je serai là vers 18h pour récupérer les clés",
-      timestamp: "14:32",
-      unreadCount: 2,
-      isOnline: true,
-      listingTitle: "Appartement avec 2 chats"
-    },
-    {
-      id: "2", 
-      name: "Thomas Martin",
-      avatar: "https://images.unsplash.com/photo-1614917752523-3e61c00e5e68?w=100",
-      lastMessage: "Merci pour cette super garde ! Max était ravi 😊",
-      timestamp: "Hier",
-      unreadCount: 0,
-      isOnline: false,
-      listingTitle: "Golden Retriever Max"
-    },
-    {
-      id: "3",
-      name: "Sophie Chen",
-      avatar: "https://images.unsplash.com/photo-1694299352873-0c29d862e87a?w=100",
-      lastMessage: "Vous avez des questions sur les plantes ?",
-      timestamp: "Lun",
-      unreadCount: 0,
-      isOnline: true,
-      listingTitle: "Jungle urbaine"
-    }
-  ];
+  const [selectedConversation, setSelectedConversation] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [newMessage, setNewMessage] = useState('');
 
-  const currentMessages: Message[] = [
-    {
-      id: "1",
-      text: "Bonjour ! Je suis intéressée par votre annonce pour la garde de vos chats",
-      timestamp: "14:20",
-      isOwn: false,
-      isRead: true
-    },
-    {
-      id: "2", 
-      text: "Bonjour Marie ! Merci pour votre message. Mes chats sont très sociables, ça devrait bien se passer 😊",
-      timestamp: "14:25",
-      isOwn: true,
-      isRead: true
-    },
-    {
-      id: "3",
-      text: "Parfait ! Quand puis-je passer récupérer les clés ?",
-      timestamp: "14:30",
-      isOwn: false,
-      isRead: true
-    },
-    {
-      id: "4",
-      text: "Parfait ! Je serai là vers 18h pour récupérer les clés",
-      timestamp: "14:32",
-      isOwn: false,
-      isRead: false
-    }
-  ];
+  const [discussions, setDiscussions] = useState<DiscussionDto[]>([]);
+  const [messages, setMessages] = useState<MessageDto[]>([]);
+  const [participantProfiles, setParticipantProfiles] = useState<Record<string, PublicUserDto>>({});
+  const [conversationSummaries, setConversationSummaries] = useState<Record<number, { lastMessage: string; lastMessageAt: string }>>({});
 
-  const filteredConversations = conversations.filter(conv =>
-    conv.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    conv.listingTitle?.toLowerCase().includes(searchQuery.toLowerCase())
+  const [isLoadingDiscussions, setIsLoadingDiscussions] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [discussionsError, setDiscussionsError] = useState<string | null>(null);
+  const [messagesError, setMessagesError] = useState<string | null>(null);
+
+  const currentUserIdentifiers = useMemo(
+    () =>
+      [user?.id, user?.username].filter(
+        (value, index, self): value is string => Boolean(value) && self.indexOf(value) === index,
+      ),
+    [user?.id, user?.username],
   );
 
-  const selectedConv = conversations.find(c => c.id === selectedConversation);
+  const resolveCounterpartId = useCallback(
+    (discussion: DiscussionDto) => {
+      const { senderId, recipientId } = discussion;
+      if (senderId && currentUserIdentifiers.includes(senderId)) {
+        return recipientId;
+      }
+      if (recipientId && currentUserIdentifiers.includes(recipientId)) {
+        return senderId;
+      }
+      return recipientId ?? senderId ?? '';
+    },
+    [currentUserIdentifiers],
+  );
 
-  const handleSendMessage = () => {
-    if (newMessage.trim()) {
-      setNewMessage("");
+  const formatListTimestamp = useCallback((value?: string) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const now = new Date();
+    const sameDay = date.toDateString() === now.toDateString();
+    if (sameDay) {
+      return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    }
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+    if (diffInDays === 1) {
+      return 'Hier';
+    }
+    if (diffInDays < 7) {
+      return date.toLocaleDateString('fr-FR', { weekday: 'short' });
+    }
+    return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  }, []);
+
+  const formatMessageTimestamp = useCallback((value?: string) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  }, []);
+
+  useEffect(() => {
+    if (!user?.id && !user?.username) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    const fetchDiscussions = async () => {
+      setIsLoadingDiscussions(true);
+      setDiscussionsError(null);
+      try {
+        const response = await getMyDiscussions({ page: 0, limit: 50 });
+        const fetched = response?.content ?? [];
+        if (!isCancelled) {
+          setDiscussions(fetched);
+          setConversationSummaries((prev) => {
+            const next = { ...prev };
+            fetched.forEach((discussion) => {
+              next[discussion.id] = {
+                lastMessage: prev[discussion.id]?.lastMessage ?? '',
+                lastMessageAt: discussion.lastMessageAt,
+              };
+            });
+            return next;
+          });
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement des discussions:', error);
+        if (!isCancelled) {
+          setDiscussionsError("Impossible de charger vos discussions pour le moment.");
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingDiscussions(false);
+        }
+      }
+    };
+
+    fetchDiscussions();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [user?.id, user?.username, getMyDiscussions]);
+
+  useEffect(() => {
+    if (discussions.length === 0) {
+      return;
+    }
+
+    const counterpartIds = Array.from(
+      new Set(
+        discussions
+          .map((discussion) => resolveCounterpartId(discussion))
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+
+    const missingIds = counterpartIds.filter((id) => !(id in participantProfiles));
+    if (missingIds.length === 0) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    const fetchProfiles = async () => {
+      const entries = await Promise.all(
+        missingIds.map(async (id) => {
+          try {
+            const profile = await getUserByUsername(id);
+            if (profile) {
+              return [id, profile] as const;
+            }
+          } catch (error) {
+            console.warn("Impossible de récupérer le profil utilisateur", id, error);
+          }
+          return null;
+        }),
+      );
+
+      if (!isCancelled) {
+        setParticipantProfiles((prev) => {
+          const next = { ...prev };
+          entries.forEach((entry) => {
+            if (entry) {
+              const [id, profile] = entry;
+              next[id] = profile;
+            }
+          });
+          return next;
+        });
+      }
+    };
+
+    fetchProfiles();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [discussions, participantProfiles, getUserByUsername, resolveCounterpartId]);
+
+  useEffect(() => {
+    if (!selectedConversation) {
+      setMessages([]);
+      setMessagesError(null);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const fetchMessages = async () => {
+      setIsLoadingMessages(true);
+      setMessagesError(null);
+      try {
+        const response = await getDiscussionMessages(selectedConversation, { page: 0, limit: 50 });
+        const fetched = response?.content ?? [];
+        const sorted = fetched.sort(
+          (a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime(),
+        );
+        if (!isCancelled) {
+          setMessages(sorted);
+          if (sorted.length > 0) {
+            const last = sorted[sorted.length - 1];
+            setConversationSummaries((prev) => ({
+              ...prev,
+              [selectedConversation]: {
+                lastMessage: last.content,
+                lastMessageAt: last.sentAt,
+              },
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement des messages:', error);
+        if (!isCancelled) {
+          setMessagesError("Impossible de charger les messages de cette conversation.");
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingMessages(false);
+        }
+      }
+    };
+
+    fetchMessages();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedConversation, getDiscussionMessages]);
+
+  const conversationItems = useMemo<ConversationItem[]>(() => {
+    if (discussions.length === 0) {
+      return [];
+    }
+
+    const itemsWithMeta = discussions.map((discussion) => {
+      const counterpartId = resolveCounterpartId(discussion) ?? '';
+      const profile = participantProfiles[counterpartId];
+      const summary = conversationSummaries[discussion.id];
+      const rawTimestamp = summary?.lastMessageAt ?? discussion.lastMessageAt;
+      const fullName = profile ? `${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim() : '';
+      const displayName = fullName || profile?.username || counterpartId || 'Utilisateur';
+      const lastMessage = summary?.lastMessage ?? '';
+
+      return {
+        conversation: {
+          id: discussion.id,
+          counterpartId,
+          name: displayName,
+          lastMessage: lastMessage || 'Ouvrir la conversation',
+          timestamp: formatListTimestamp(rawTimestamp),
+          unreadCount: 0,
+          isOnline: false,
+          listingTitle: discussion.announcementId ? `Annonce #${discussion.announcementId}` : undefined,
+        } as ConversationItem,
+        rawTimestamp,
+      };
+    });
+
+    itemsWithMeta.sort((a, b) => {
+      const timeA = a.rawTimestamp ? new Date(a.rawTimestamp).getTime() : 0;
+      const timeB = b.rawTimestamp ? new Date(b.rawTimestamp).getTime() : 0;
+      return timeB - timeA;
+    });
+
+    return itemsWithMeta.map((item) => item.conversation);
+  }, [discussions, participantProfiles, conversationSummaries, resolveCounterpartId, formatListTimestamp]);
+
+  const filteredConversations = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return conversationItems;
+    }
+    const query = searchQuery.trim().toLowerCase();
+    return conversationItems.filter(
+      (item) =>
+        item.name.toLowerCase().includes(query) ||
+        (item.listingTitle ?? '').toLowerCase().includes(query) ||
+        item.lastMessage.toLowerCase().includes(query),
+    );
+  }, [conversationItems, searchQuery]);
+
+  const selectedConversationItem = useMemo(
+    () =>
+      selectedConversation
+        ? conversationItems.find((item) => item.id === selectedConversation) ?? null
+        : null,
+    [conversationItems, selectedConversation],
+  );
+
+  const counterpartProfile = useMemo(() => {
+    if (!selectedConversationItem) {
+      return undefined;
+    }
+    return participantProfiles[selectedConversationItem.counterpartId];
+  }, [selectedConversationItem, participantProfiles]);
+
+  const uiMessages = useMemo<UiMessage[]>(() => {
+    if (messages.length === 0) {
+      return [];
+    }
+    return messages.map((message) => ({
+      id: message.id,
+      text: message.content,
+      timestamp: formatMessageTimestamp(message.sentAt),
+      isOwn: currentUserIdentifiers.includes(message.authorId),
+    }));
+  }, [messages, currentUserIdentifiers, formatMessageTimestamp]);
+
+  const handleSelectConversation = (conversationId: number) => {
+    setSelectedConversation(conversationId);
+    setMessages([]);
+    setMessagesError(null);
+  };
+
+  const handleSendMessage = async () => {
+    if (!selectedConversation) {
+      return;
+    }
+    const content = newMessage.trim();
+    if (!content || isSendingMessage) {
+      return;
+    }
+
+    setIsSendingMessage(true);
+    setMessagesError(null);
+
+    try {
+      const response = await sendMessageToDiscussion(selectedConversation, { content });
+      if (response) {
+        setMessages((prev) => [...prev, response]);
+        setConversationSummaries((prev) => ({
+          ...prev,
+          [selectedConversation]: {
+            lastMessage: response.content,
+            lastMessageAt: response.sentAt,
+          },
+        }));
+        setNewMessage('');
+      }
+    } catch (error) {
+      console.error("Erreur lors de l'envoi du message:", error);
+      setMessagesError("Impossible d'envoyer le message. Veuillez réessayer.");
+    } finally {
+      setIsSendingMessage(false);
     }
   };
 
-  if (selectedConversation) {
+  if (selectedConversation && selectedConversationItem) {
     return (
       <SafeAreaView style={styles.container}>
-        {/* Header conversation */}
         <View style={styles.conversationHeaderView}>
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             onPress={() => setSelectedConversation(null)}
             style={styles.backButton}
           >
             <Icon name="ArrowLeft" size={20} color={theme.colors.foreground} />
           </Button>
-          
+
           <View style={styles.conversationInfo}>
             <View style={styles.conversationAvatar}>
               <Icon name="User" size={20} color={theme.colors.mutedForeground} />
-              {selectedConv?.isOnline && <View style={styles.onlineIndicator} />}
+              {selectedConversationItem.isOnline && <View style={styles.onlineIndicator} />}
             </View>
-            
+
             <View style={styles.conversationDetails}>
-              <Text style={styles.conversationName}>{selectedConv?.name}</Text>
+              <Text style={styles.conversationName}>
+                {counterpartProfile
+                  ? `${counterpartProfile.firstName ?? ''} ${counterpartProfile.lastName ?? ''}`.trim() ||
+                    counterpartProfile.username ||
+                    selectedConversationItem.name
+                  : selectedConversationItem.name}
+              </Text>
               <Text style={styles.conversationStatus}>
-                {selectedConv?.isOnline ? "En ligne" : "Vu récemment"}
+                {selectedConversationItem.timestamp
+                  ? `Dernier message ${selectedConversationItem.timestamp}`
+                  : 'Discussion ouverte'}
               </Text>
             </View>
           </View>
-
         </View>
 
-        {/* Info annonce */}
-        {selectedConv?.listingTitle && (
+        {selectedConversationItem.listingTitle && (
           <View style={styles.listingInfo}>
             <Icon name="Star" size={16} color="#2563eb" />
-            <Text style={styles.listingTitle}>{selectedConv.listingTitle}</Text>
+            <Text style={styles.listingTitle}>{selectedConversationItem.listingTitle}</Text>
           </View>
         )}
 
-        {/* Messages */}
         <ScrollView style={styles.messagesContainer} showsVerticalScrollIndicator={false}>
-          {currentMessages.map((message) => (
-            <View 
+          {isLoadingMessages && <Text style={styles.loadingText}>Chargement des messages…</Text>}
+          {!isLoadingMessages && messagesError && (
+            <Text style={styles.errorText}>{messagesError}</Text>
+          )}
+          {!isLoadingMessages && !messagesError && uiMessages.length === 0 && (
+            <Text style={styles.loadingText}>Aucun message pour le moment.</Text>
+          )}
+          {uiMessages.map((message) => (
+            <View
               key={message.id}
               style={[styles.messageWrapper, message.isOwn && styles.ownMessageWrapper]}
             >
-              <View style={[
-                styles.messageBubble,
-                message.isOwn ? styles.ownMessage : styles.otherMessage
-              ]}>
-                <Text style={[
-                  styles.messageText,
-                  message.isOwn ? styles.ownMessageText : styles.otherMessageText
-                ]}>
+              <View
+                style={[
+                  styles.messageBubble,
+                  message.isOwn ? styles.ownMessage : styles.otherMessage,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.messageText,
+                    message.isOwn ? styles.ownMessageText : styles.otherMessageText,
+                  ]}
+                >
                   {message.text}
                 </Text>
                 <View style={[styles.messageFooter, message.isOwn && styles.ownMessageFooter]}>
-                  <Text style={[
-                    styles.messageTime,
-                    message.isOwn ? styles.ownMessageTime : styles.otherMessageTime
-                  ]}>
+                  <Text
+                    style={[
+                      styles.messageTime,
+                      message.isOwn ? styles.ownMessageTime : styles.otherMessageTime,
+                    ]}
+                  >
                     {message.timestamp}
                   </Text>
                 </View>
@@ -181,12 +460,11 @@ export function MessagesPage({ onBack }: MessagesPageProps) {
           ))}
         </ScrollView>
 
-        {/* Input message */}
         <View style={styles.messageInput}>
           <TouchableOpacity style={styles.attachButton}>
             <Icon name="Plus" size={18} color={theme.colors.primaryForeground} />
           </TouchableOpacity>
-          
+
           <View style={styles.inputWrapper}>
             <Input
               placeholder="Tapez votre message..."
@@ -196,10 +474,14 @@ export function MessagesPage({ onBack }: MessagesPageProps) {
               multiline
             />
           </View>
-          
-          <TouchableOpacity 
-            style={styles.sendButton}
+
+          <TouchableOpacity
+            style={[
+              styles.sendButton,
+              (isSendingMessage || !newMessage.trim()) && styles.sendButtonDisabled,
+            ]}
             onPress={handleSendMessage}
+            disabled={isSendingMessage || !newMessage.trim()}
           >
             <Icon name="Send" size={18} color={theme.colors.primaryForeground} />
           </TouchableOpacity>
@@ -210,41 +492,58 @@ export function MessagesPage({ onBack }: MessagesPageProps) {
 
   return (
     <View style={styles.container}>
-      <PageHeader 
+      <PageHeader
         title="Messages"
         icon="chatbubble"
+        showBackButton={Boolean(onBack)}
+        onBack={onBack}
       />
 
-        {/* Search */}
-        <View style={styles.searchContainer}>
-          <View style={styles.searchWrapper}>
-            <Icon name="Search" size={16} color={theme.colors.mutedForeground} style={styles.searchIcon} />
-            <Input 
-              placeholder="Rechercher une conversation..." 
-              style={styles.searchInput}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
+      <View style={styles.searchContainer}>
+        <View style={styles.searchWrapper}>
+          <Icon
+            name="Search"
+            size={16}
+            color={theme.colors.mutedForeground}
+            style={styles.searchIcon}
+          />
+          <Input
+            placeholder="Rechercher une conversation..."
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
         </View>
+      </View>
 
-      {/* Conversations List */}
       <ScrollView style={styles.conversationsList} showsVerticalScrollIndicator={false}>
-        {filteredConversations.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Icon name="Search" size={64} color={theme.colors.mutedForeground} />
-            <Text style={styles.emptyTitle}>Aucune conversation</Text>
-            <Text style={styles.emptyDescription}>
-              {searchQuery ? "Aucun résultat pour votre recherche" : "Vos conversations apparaîtront ici"}
-            </Text>
-          </View>
-        ) : (
+        {isLoadingDiscussions && (
+          <Text style={styles.loadingText}>Chargement des conversations…</Text>
+        )}
+        {!isLoadingDiscussions && discussionsError && (
+          <Text style={styles.errorText}>{discussionsError}</Text>
+        )}
+        {!isLoadingDiscussions &&
+          !discussionsError &&
+          filteredConversations.length === 0 && (
+            <View style={styles.emptyState}>
+              <Icon name="Search" size={64} color={theme.colors.mutedForeground} />
+              <Text style={styles.emptyTitle}>Aucune conversation</Text>
+              <Text style={styles.emptyDescription}>
+                {searchQuery
+                  ? 'Aucun résultat pour votre recherche'
+                  : 'Vos conversations apparaîtront ici'}
+              </Text>
+            </View>
+          )}
+
+        {!isLoadingDiscussions && !discussionsError && filteredConversations.length > 0 && (
           <View style={styles.conversationsContainer}>
             {filteredConversations.map((conversation) => (
-              <View
+              <TouchableOpacity
                 key={conversation.id}
                 style={styles.conversationItem}
-                onTouchEnd={() => setSelectedConversation(conversation.id)}
+                onPress={() => handleSelectConversation(conversation.id)}
               >
                 <View style={styles.conversationItemLeft}>
                   <View style={styles.avatarContainer}>
@@ -259,29 +558,26 @@ export function MessagesPage({ onBack }: MessagesPageProps) {
                       <Text style={styles.conversationName}>{conversation.name}</Text>
                       <Text style={styles.conversationTime}>{conversation.timestamp}</Text>
                     </View>
-                    
+
                     {conversation.listingTitle && (
                       <Text style={styles.conversationListing}>{conversation.listingTitle}</Text>
                     )}
-                    
+
                     <View style={styles.conversationFooter}>
                       <Text style={styles.lastMessage} numberOfLines={1}>
                         {conversation.lastMessage}
                       </Text>
                       {conversation.unreadCount > 0 && (
-                        <Badge style={styles.unreadBadge}>
-                          {conversation.unreadCount}
-                        </Badge>
+                        <Badge style={styles.unreadBadge}>{conversation.unreadCount}</Badge>
                       )}
                     </View>
                   </View>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         )}
       </ScrollView>
-
     </View>
   );
 }
@@ -345,6 +641,18 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.sm,
+  },
+  loadingText: {
+    textAlign: 'center',
+    color: theme.colors.mutedForeground,
+    fontSize: theme.fontSize.sm,
+    marginVertical: theme.spacing.lg,
+  },
+  errorText: {
+    textAlign: 'center',
+    color: theme.colors.destructive,
+    fontSize: theme.fontSize.sm,
+    marginVertical: theme.spacing.lg,
   },
   emptyState: {
     flex: 1,
@@ -607,5 +915,8 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.22,
     shadowRadius: 2.22,
+  },
+  sendButtonDisabled: {
+    opacity: 0.5,
   },
 });

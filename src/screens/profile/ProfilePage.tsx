@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
@@ -14,6 +13,9 @@ import { useTranslation } from 'react-i18next';
 import { useAnnouncementsApi } from '../../hooks/api/useAnnouncementsApi';
 import { useApplicationsApi } from '../../hooks/api/useApplicationsApi';
 import { useRatingsApi } from '../../hooks/api/useRatingsApi';
+import { RatingDto } from '../../types/api';
+
+type ActivityReview = RatingDto & { note?: number; commentaire?: string; dateAvis?: string };
 
 interface ProfilePageProps {
   onNavigate?: (page: string) => void;
@@ -25,12 +27,38 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
   const { t } = useTranslation();
   const { listAnnouncementsByOwner } = useAnnouncementsApi();
   const { listApplications } = useApplicationsApi();
-  const { getAverageRating, getRatingCount } = useRatingsApi();
+  const { getAverageRating, getRatingCount, getRatingsReceived } = useRatingsApi();
   
   const [listingsCreated, setListingsCreated] = useState(0);
   const [guardsCompleted, setGuardsCompleted] = useState(0);
   const [rating, setRating] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
+  const [recentReviews, setRecentReviews] = useState<ActivityReview[]>([]);
+
+  const normalizeRating = (
+    rating: RatingDto & { note?: number; commentaire?: string; dateAvis?: string },
+  ): ActivityReview => ({
+    ...rating,
+    score: rating.score ?? rating.note ?? 0,
+    comment: rating.comment ?? rating.commentaire ?? '',
+    createdAt: rating.createdAt ?? rating.dateAvis ?? '',
+    updatedAt: rating.updatedAt ?? rating.dateAvis ?? '',
+  });
+
+  const formatDate = (value?: string) => {
+    if (!value) {
+      return 'Date inconnue';
+    }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return 'Date inconnue';
+    }
+    return parsed.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  };
   
   useEffect(() => {
     const fetchUserStats = async () => {
@@ -54,15 +82,23 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
         }
 
         // Fetch average rating
-        const avgRating = await getAverageRating(user.id);
+        const avgRating = await getAverageRating(user.username);
         if (avgRating !== null && avgRating !== undefined) {
           setRating(Number(avgRating.toFixed(1)));
         }
 
         // Fetch review count
-        const count = await getRatingCount(user.id);
+        const count = await getRatingCount(user.username);
         if (count !== null && count !== undefined) {
           setReviewCount(count);
+        }
+
+        // Fetch recent reviews
+        const received = await getRatingsReceived(user.username, { limit: 3, page: 0 });
+        if (received?.content) {
+          setRecentReviews(received.content.map((item) => normalizeRating(item)));
+        } else {
+          setRecentReviews([]);
         }
       } catch (error) {
         console.error('Error fetching user stats:', error);
@@ -70,7 +106,17 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
     };
 
     fetchUserStats();
-  }, [user?.username, user?.id, listAnnouncementsByOwner, listApplications, getAverageRating, getRatingCount, isAuthenticated, accessToken]);
+  }, [
+    user?.username,
+    user?.id,
+    listAnnouncementsByOwner,
+    listApplications,
+    getAverageRating,
+    getRatingCount,
+    getRatingsReceived,
+    isAuthenticated,
+    accessToken,
+  ]);
 
   const userStats = {
     listingsCreated: listingsCreated,
@@ -319,25 +365,42 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
             <CardContent>
               <Text style={styles.sectionTitle}>Activité récente</Text>
               <View style={styles.activityList}>
-                <View style={styles.activityItem}>
-                  <View style={styles.activityIcon}>
-                    <Icon name="Calendar" size={16} color="#22c55e" />
+                {recentReviews.length > 0 ? (
+                  recentReviews.map((review) => {
+                    const score = typeof review.score === 'number' ? review.score : 0;
+                    const displayDate = formatDate(review.createdAt);
+                    return (
+                      <View key={review.id} style={styles.activityItem}>
+                        <View style={[styles.activityIcon, { backgroundColor: '#dbeafe' }]}>
+                          <Icon name="Star" size={16} color="#2563eb" />
+                        </View>
+                        <View style={styles.activityContent}>
+                          <Text style={styles.activityTitle}>
+                            {score.toFixed(1)} étoiles de {review.authorId}
+                          </Text>
+                          <Text style={styles.activityDescription}>
+                            Reçu le {displayDate}
+                          </Text>
+                          {review.comment ? (
+                            <Text style={styles.activityComment}>{review.comment}</Text>
+                          ) : null}
+                        </View>
+                      </View>
+                    );
+                  })
+                ) : (
+                  <View style={styles.activityItem}>
+                    <View style={[styles.activityIcon, { backgroundColor: '#f1f5f9' }]}>
+                      <Icon name="help-circle" size={16} color={theme.colors.mutedForeground} />
+                    </View>
+                    <View style={styles.activityContent}>
+                      <Text style={styles.activityTitle}>Aucun avis pour le moment</Text>
+                      <Text style={styles.activityDescription}>
+                        Vos avis reçus apparaîtront ici dès qu&apos;un client vous évaluera.
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.activityContent}>
-                    <Text style={styles.activityTitle}>Garde terminée</Text>
-                    <Text style={styles.activityDescription}>Appartement de Marie - Il y a 3 jours</Text>
-                  </View>
-                </View>
-                
-                <View style={styles.activityItem}>
-                  <View style={[styles.activityIcon, { backgroundColor: '#dbeafe' }]}>
-                    <Icon name="Star" size={16} color="#2563eb" />
-                  </View>
-                  <View style={styles.activityContent}>
-                    <Text style={styles.activityTitle}>Nouvel avis reçu</Text>
-                    <Text style={styles.activityDescription}>5 étoiles de Thomas - Il y a 1 semaine</Text>
-                  </View>
-                </View>
+                )}
               </View>
             </CardContent>
           </Card>
@@ -605,6 +668,11 @@ const styles = StyleSheet.create({
   activityDescription: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.mutedForeground,
+  },
+  activityComment: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.foreground,
+    marginTop: 4,
   },
   logoutButton: {
     flexDirection: 'row',
