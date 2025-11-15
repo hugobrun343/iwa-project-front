@@ -15,6 +15,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [refreshTokenValue, setRefreshTokenValue] = useState<string | null>(null);
+  const [isProfileComplete, setIsProfileComplete] = useState<boolean | null>(null);
+  const [isCheckingProfile, setIsCheckingProfile] = useState(false);
 
   const authActions = useAuthActions();
 
@@ -33,11 +35,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(user);
         setAccessToken(tokens.access_token);
         setRefreshTokenValue(tokens.refresh_token);
+        
+        // Check if profile is complete
+        if (user.username) {
+          await checkProfileComplete(user.username, tokens.access_token);
+        }
       }
     } catch (error) {
       console.error('Auth initialization error:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const checkProfileComplete = async (username: string, token: string): Promise<boolean> => {
+    try {
+      setIsCheckingProfile(true);
+      const response = await authActions.checkProfileComplete(username, token);
+      setIsProfileComplete(response);
+      return response;
+    } catch (error) {
+      console.error('Error checking profile complete:', error);
+      // If check fails, assume profile is incomplete to be safe
+      setIsProfileComplete(false);
+      return false;
+    } finally {
+      setIsCheckingProfile(false);
     }
   };
 
@@ -49,6 +72,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(user);
         setAccessToken(tokens.access_token);
         setRefreshTokenValue(tokens.refresh_token);
+        
+        // Check if profile is complete
+        if (user.username) {
+          await checkProfileComplete(user.username, tokens.access_token);
+        }
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -80,6 +108,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(fakeUser);
       setAccessToken('dev-access-token');
       setRefreshTokenValue('dev-refresh-token');
+      // Mark profile as complete for simulated login
+      setIsProfileComplete(true);
     } finally {
       setIsLoading(false);
     }
@@ -93,6 +123,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(user);
         setAccessToken(tokens.access_token);
         setRefreshTokenValue(tokens.refresh_token);
+        
+        // Check if profile is complete
+        if (user.username) {
+          await checkProfileComplete(user.username, tokens.access_token);
+        }
       }
     } catch (error) {
       console.error('Google login error:', error);
@@ -107,6 +142,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(null);
       setAccessToken(null);
       setRefreshTokenValue(null);
+      setIsProfileComplete(null);
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -133,14 +169,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (!accessToken) return;
 
     try {
-      const success = await authActions.performUpdateProfile(accessToken, updates);
-      
-      if (success) {
-        setUser(prev => prev ? { ...prev, ...updates } : null);
+      if (user?.username) {
+        await checkProfileComplete(user.username, accessToken);
       }
     } catch (error) {
       console.error('Update profile error:', error);
     }
+  };
+
+  const markProfileAsComplete = () => {
+    setIsProfileComplete(true);
   };
 
   const updateUserAttribute = async (attribute: string, value: any): Promise<boolean> => {
@@ -177,9 +215,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const value: AuthContextType = {
     user,
-    isLoading: isLoading || authActions.isLoading,
+    isLoading: isLoading || authActions.isLoading || isCheckingProfile,
     isAuthenticated,
     accessToken,
+    isProfileComplete,
     login,
     simulateLogin: ENABLE_SIMULATED_LOGIN ? simulateLogin : undefined,
     loginWithGoogle,
@@ -187,6 +226,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     refreshToken,
     updateUserProfile,
     updateUserAttribute,
+    markProfileAsComplete,
   };
 
   return (

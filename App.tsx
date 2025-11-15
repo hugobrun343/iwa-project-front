@@ -22,6 +22,7 @@ import { EditProfilePage } from './src/screens/profile/EditProfilePage';
 import { AdvancedSettingsPage } from './src/screens/profile/AdvancedSettingsPage';
 import { LanguageSelectorPage } from './src/screens/profile/LanguageSelectorPage';
 import { LoginPage } from './src/screens/auth/LoginPage';
+import { CompleteProfilePage } from './src/screens/profile/CompleteProfilePage';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { theme } from './src/styles/theme';
 import './src/i18n';
@@ -31,7 +32,7 @@ import { useFavoritesApi } from './src/hooks/api/useFavoritesApi';
 
 // Main App Component with Authentication
 function MainApp() {
-  const { isAuthenticated, isLoading, user, accessToken } = useAuth();
+  const { isAuthenticated, isLoading, user, accessToken, isProfileComplete, markProfileAsComplete } = useAuth();
   const { t } = useTranslation();
   const enableSimulatedLogin = process.env.EXPO_PUBLIC_ENABLE_SIMULATED_LOGIN === 'true';
   const [activeTab, setActiveTab] = useState("home");
@@ -113,6 +114,20 @@ function MainApp() {
       <SafeAreaProvider>
         <StatusBar style="dark" backgroundColor="#ffffff" />
         <LoginPage allowSimulatedLogin={enableSimulatedLogin} />
+      </SafeAreaProvider>
+    );
+  }
+
+  // Show profile completion page if profile is not complete
+  if (isAuthenticated && isProfileComplete === false) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style="dark" backgroundColor="#ffffff" />
+        <CompleteProfilePage 
+          onComplete={() => {
+            markProfileAsComplete();
+          }} 
+        />
       </SafeAreaProvider>
     );
   }

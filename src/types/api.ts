@@ -1,3 +1,11 @@
+export interface UserLanguageDto {
+  label: string;
+}
+
+export interface UserSpecialisationDto {
+  label: string;
+}
+
 export interface PrivateUserDto {
   username: string;
   email?: string;
@@ -7,9 +15,11 @@ export interface PrivateUserDto {
   location?: string;
   description?: string;
   profilePhoto?: string;
-  identityVerification?: string;
-  preferences?: Record<string, unknown>;
+  identityVerification?: boolean;
+  preferences?: string;
   registrationDate?: string;
+  languages?: UserLanguageDto[];
+  specialisations?: UserSpecialisationDto[];
 }
 
 export interface PublicUserDto {
@@ -19,11 +29,11 @@ export interface PublicUserDto {
   location?: string;
   description?: string;
   profilePhoto?: string;
-  identityVerification?: string;
+  identityVerification?: boolean;
   registrationDate?: string;
 }
 
-export type CreateUserPayload = Omit<PrivateUserDto, 'username' | 'registrationDate'>;
+export type CreateUserPayload = Omit<PrivateUserDto, 'username' | 'registrationDate' | 'languages' | 'specialisations'>;
 
 export interface UserExistsResponse {
   username: string;

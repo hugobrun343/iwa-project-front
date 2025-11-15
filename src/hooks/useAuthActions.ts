@@ -221,6 +221,30 @@ export const useAuthActions = () => {
     return await UserService.updateUserAttribute(accessToken, userId, attribute, value);
   };
 
+  const checkProfileComplete = async (username: string, accessToken: string): Promise<boolean> => {
+    try {
+      const apiBaseUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080';
+      const response = await fetch(`${apiBaseUrl}/api/users/${username}/profile-complete`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        console.warn('Failed to check profile complete:', response.status);
+        return false;
+      }
+
+      const data = await response.json();
+      return data.complete === true;
+    } catch (error) {
+      console.error('Error checking profile complete:', error);
+      return false;
+    }
+  };
+
   return {
     isLoading,
     performLogin,
@@ -229,5 +253,6 @@ export const useAuthActions = () => {
     initializeFromStorage,
     performUpdateProfile,
     performUpdateAttribute,
+    checkProfileComplete,
   };
 };

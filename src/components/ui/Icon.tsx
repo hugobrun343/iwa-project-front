@@ -60,6 +60,7 @@ const iconMap = {
   'log-in': 'log-in-outline',
   'log-out': 'log-out-outline',
   key: 'key-outline',
+  'person-add': 'person-add-outline',
 } as const;
 
 export type IconName = keyof typeof iconMap;
