@@ -19,6 +19,7 @@ interface ListingCardProps {
   isLiked?: boolean;
   rating?: number;
   reviewCount?: number;
+  ownerUsername?: string;
   onLikeToggle?: (id: string) => void;
 }
 
@@ -35,6 +36,7 @@ export function ListingCard({
   isLiked = false,
   rating,
   reviewCount,
+  ownerUsername,
   onLikeToggle,
 }: ListingCardProps) {
   return (
@@ -70,6 +72,13 @@ export function ListingCard({
           <Icon name="location" size={12} color={theme.colors.mutedForeground} />
           <Text style={styles.locationText}>{location}</Text>
         </View>
+        
+        {ownerUsername && (
+          <View style={styles.ownerRow}>
+            <Icon name="User" size={12} color={theme.colors.mutedForeground} />
+            <Text style={styles.ownerText}>{ownerUsername}</Text>
+          </View>
+        )}
         
         <Text style={styles.description} numberOfLines={2}>
           {description}
@@ -154,6 +163,17 @@ const styles = StyleSheet.create({
   locationText: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.mutedForeground,
+  },
+  ownerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    marginBottom: theme.spacing.sm,
+  },
+  ownerText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
+    fontWeight: theme.fontWeight.medium,
   },
   description: {
     fontSize: theme.fontSize.sm,

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
@@ -8,94 +8,402 @@ import { Icon } from '../../components/ui/Icon';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { ImageWithFallback } from '../../components/ui/ImageWithFallback';
 import { theme } from '../../styles/theme';
+import { useAuth } from '../../contexts/AuthContext';
+import { useApplicationsApi } from '../../hooks/api/useApplicationsApi';
+import { useAnnouncementsApi } from '../../hooks/api/useAnnouncementsApi';
+import { useRatingsApi } from '../../hooks/api/useRatingsApi';
+import { useUserApi } from '../../hooks/api/useUserApi';
+import { ApplicationResponseDto, AnnouncementResponseDto, RatingDto } from '../../types/api';
 
 interface GuardHistoryPageProps {
   onBack: () => void;
 }
 
+interface GuardData {
+  id: string;
+  title: string;
+  location: string;
+  period: string;
+  duration: string;
+  owner: string;
+  ownerAvatar?: string;
+  payment: number;
+  rating?: number;
+  review?: string;
+  animals: string[];
+  plants: string[];
+  photos?: number;
+  status?: string;
+  daysLeft?: number;
+  announcementId: number;
+}
+
 export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
   const [activeTab, setActiveTab] = useState("current");
+  const { user } = useAuth();
+  const { listApplications } = useApplicationsApi();
+  const { getAnnouncementById } = useAnnouncementsApi();
+  const { getRatingsReceived } = useRatingsApi();
+  const { getUserByUsername } = useUserApi();
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [guardHistory, setGuardHistory] = useState<{
+    completed: GuardData[];
+    upcoming: GuardData[];
+    current: GuardData[];
+  }>({
+    completed: [],
+    upcoming: [],
+    current: [],
+  });
 
-  const guardHistory = {
-    completed: [
-      {
-        id: "1",
-        title: "Appartement moderne avec vue - 2 chats adorables",
-        location: "Paris 11ème",
-        period: "5-12 Jan 2024",
-        duration: "7 jours",
-        owner: "Marie Dubois",
-        ownerAvatar: "https://images.unsplash.com/photo-1494790108755-2616b612b65c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
-        payment: 245,
-        rating: 5,
-        review: "Sophie a pris un soin exceptionnel de mes chats ! Ils étaient très heureux.",
-        animals: ["2 chats"],
-        plants: ["Plantes d'intérieur"],
-        photos: 12
-      },
-      {
-        id: "2",
-        title: "Golden Retriever énergique - Maison avec jardin",
-        location: "Vincennes",
-        period: "20-25 Déc 2023",
-        duration: "5 jours",
-        owner: "Thomas Martin",
-        ownerAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
-        payment: 225,
-        rating: 5,
-        review: "Max était en excellentes mains. Merci Sophie !",
-        animals: ["1 chien"],
-        plants: [],
-        photos: 8
-      },
-      {
-        id: "3",
-        title: "Jungle urbaine - Arrosage intensif requis",
-        location: "Belleville",
-        period: "3-10 Nov 2023",
-        duration: "7 jours",
-        owner: "Camille Leroy",
-        ownerAvatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
-        payment: 140,
-        rating: 4,
-        review: "Bon travail sur les plantes, quelques petites améliorations possibles.",
-        animals: [],
-        plants: ["15 plantes tropicales"],
-        photos: 6
-      }
-    ],
-    upcoming: [
-      {
-        id: "4",
-        title: "Garde de Minou pendant les vacances",
-        location: "Levallois-Perret",
-        period: "15-22 Fév 2024",
-        duration: "7 jours",
-        owner: "Pierre Bonnet",
-        ownerAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
-        payment: 175,
-        animals: ["1 chat"],
-        plants: ["Petites plantes"],
-        status: "confirmed"
-      }
-    ],
-    current: [
-      {
-        id: "5",
-        title: "Appartement avec plantes et poissons",
-        location: "République",
-        period: "1-7 Fév 2024",
-        duration: "7 jours",
-        owner: "Laura Silva",
-        ownerAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
-        payment: 210,
-        animals: ["Poissons"],
-        plants: ["Plantes vertes"],
-        status: "in_progress",
-        daysLeft: 4
-      }
-    ]
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
   };
+
+  const formatPeriod = (startDate: string, endDate?: string): string => {
+    const start = new Date(startDate);
+    const end = endDate ? new Date(endDate) : start;
+    const startStr = start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+    const endStr = end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+    return `${startStr} - ${endStr}`;
+  };
+
+  const calculateDuration = (startDate: string, endDate?: string): string => {
+    if (!endDate) return '1 jour';
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return `${diffDays} jour${diffDays > 1 ? 's' : ''}`;
+  };
+
+  const calculateDaysLeft = (endDate: string): number => {
+    const end = new Date(endDate);
+    const now = new Date();
+    const diffTime = end.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return Math.max(0, diffDays);
+  };
+
+  const parseCareType = (careTypeLabel: string): { animals: string[]; plants: string[] } => {
+    const animals: string[] = [];
+    const plants: string[] = [];
+    
+    const lowerLabel = careTypeLabel.toLowerCase();
+    if (lowerLabel.includes('chat') || lowerLabel.includes('cat')) {
+      const match = careTypeLabel.match(/(\d+)\s*chat/i);
+      const count = match ? match[1] : '1';
+      animals.push(`${count} chat${count !== '1' ? 's' : ''}`);
+    }
+    if (lowerLabel.includes('chien') || lowerLabel.includes('dog')) {
+      const match = careTypeLabel.match(/(\d+)\s*chien/i);
+      const count = match ? match[1] : '1';
+      animals.push(`${count} chien${count !== '1' ? 's' : ''}`);
+    }
+    if (lowerLabel.includes('poisson') || lowerLabel.includes('fish')) {
+      animals.push('Poissons');
+    }
+    if (lowerLabel.includes('plante') || lowerLabel.includes('plant')) {
+      plants.push('Plantes');
+    }
+    
+    return { animals, plants };
+  };
+
+  const fetchGuardHistory = useCallback(async () => {
+    if (!user?.username) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+        // Fetch all applications for the current user as guardian
+        const applications = await listApplications({ guardianUsername: user.username });
+        
+        console.log('Total applications found:', applications?.length || 0);
+        
+        if (!applications || applications.length === 0) {
+          setGuardHistory({ completed: [], upcoming: [], current: [] });
+          setIsLoading(false);
+          return;
+        }
+
+        // Filter only ACCEPTED applications
+        const acceptedApplications = applications.filter(app => app.status === 'ACCEPTED');
+        console.log('Accepted applications:', acceptedApplications.length);
+
+        // Fetch announcement details and owner info for each application
+        const guardDataPromises = acceptedApplications.map(async (app: ApplicationResponseDto) => {
+          try {
+            console.log(`Processing application ${app.id} for announcement ${app.announcementId}`);
+            let announcement;
+            try {
+              announcement = await getAnnouncementById(app.announcementId);
+            } catch (err) {
+              console.error(`Failed to fetch announcement ${app.announcementId} for application ${app.id}:`, err);
+              // Continue with minimal data if announcement fetch fails
+              return {
+                guardData: {
+                  id: app.id.toString(),
+                  title: `Annonce #${app.announcementId}`,
+                  location: 'Non disponible',
+                  period: app.createdAt ? formatDate(app.createdAt) : 'Date inconnue',
+                  duration: 'Non disponible',
+                  owner: 'Non disponible',
+                  ownerAvatar: undefined,
+                  payment: 0,
+                  animals: [],
+                  plants: [],
+                  photos: 0,
+                  status: 'completed',
+                  announcementId: app.announcementId,
+                },
+                status: 'completed' as const,
+              };
+            }
+            
+            if (!announcement) {
+              console.warn(`Announcement ${app.announcementId} not found for application ${app.id}`);
+              // Return minimal data instead of null
+              return {
+                guardData: {
+                  id: app.id.toString(),
+                  title: `Annonce #${app.announcementId}`,
+                  location: 'Non disponible',
+                  period: app.createdAt ? formatDate(app.createdAt) : 'Date inconnue',
+                  duration: 'Non disponible',
+                  owner: 'Non disponible',
+                  ownerAvatar: undefined,
+                  payment: 0,
+                  animals: [],
+                  plants: [],
+                  photos: 0,
+                  status: 'completed',
+                  announcementId: app.announcementId,
+                },
+                status: 'completed' as const,
+              };
+            }
+            
+            console.log(`Announcement ${app.announcementId} found:`, {
+              title: announcement.title,
+              status: announcement.status,
+              startDate: announcement.startDate,
+              endDate: announcement.endDate,
+            });
+
+            // Fetch owner info
+            let ownerInfo = null;
+            if (announcement.ownerUsername) {
+              try {
+                ownerInfo = await getUserByUsername(announcement.ownerUsername);
+              } catch (err) {
+                console.warn(`Failed to fetch owner info for ${announcement.ownerUsername}:`, err);
+              }
+            }
+
+            const now = new Date();
+            let startDate: Date | null = null;
+            let endDate: Date | null = null;
+            
+            try {
+              if (announcement.startDate) {
+                startDate = new Date(announcement.startDate);
+                if (isNaN(startDate.getTime())) {
+                  console.warn(`Invalid startDate for announcement ${app.announcementId}: ${announcement.startDate}`);
+                  startDate = null;
+                }
+              }
+              if (announcement.endDate) {
+                endDate = new Date(announcement.endDate);
+                if (isNaN(endDate.getTime())) {
+                  console.warn(`Invalid endDate for announcement ${app.announcementId}: ${announcement.endDate}`);
+                  endDate = null;
+                }
+              }
+            } catch (err) {
+              console.warn(`Error parsing dates for announcement ${app.announcementId}:`, err);
+            }
+
+            // Determine status based on announcement status and dates
+            let status: 'current' | 'upcoming' | 'completed' = 'completed';
+            
+            // If announcement is marked as COMPLETED, it's definitely completed
+            if (announcement.status === 'COMPLETED') {
+              status = 'completed';
+              console.log(`Announcement ${app.announcementId} marked as COMPLETED`);
+            } else if (endDate && startDate) {
+              // If we have both dates, use them to determine status
+              if (endDate < now) {
+                // End date has passed - guard is completed
+                status = 'completed';
+                console.log(`Announcement ${app.announcementId}: endDate passed, status=completed`);
+              } else if (startDate > now) {
+                // Start date is in the future - guard is upcoming
+                status = 'upcoming';
+                console.log(`Announcement ${app.announcementId}: startDate in future, status=upcoming`);
+              } else {
+                // We're between start and end date - guard is current
+                status = 'current';
+                console.log(`Announcement ${app.announcementId}: between dates, status=current`);
+              }
+            } else if (startDate) {
+              // Only start date available
+              if (startDate > now) {
+                status = 'upcoming';
+                console.log(`Announcement ${app.announcementId}: only startDate, in future, status=upcoming`);
+              } else {
+                // Start date has passed but no end date - consider it current if recent, completed if old
+                const daysSinceStart = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+                status = daysSinceStart > 30 ? 'completed' : 'current';
+                console.log(`Announcement ${app.announcementId}: only startDate, ${daysSinceStart} days ago, status=${status}`);
+              }
+            } else {
+              // No valid dates - default to completed if old application, current if recent
+              const appDate = app.createdAt ? new Date(app.createdAt) : null;
+              if (appDate && !isNaN(appDate.getTime())) {
+                const daysSinceApp = Math.floor((now.getTime() - appDate.getTime()) / (1000 * 60 * 60 * 24));
+                status = daysSinceApp > 30 ? 'completed' : 'current';
+                console.log(`Announcement ${app.announcementId}: no valid dates, using app date, ${daysSinceApp} days ago, status=${status}`);
+              } else {
+                status = 'completed';
+                console.log(`Announcement ${app.announcementId}: no valid dates at all, defaulting to completed`);
+              }
+            }
+
+            // Fetch rating if completed - ratings given TO the guardian (user) BY the owner
+            let rating: number | undefined;
+            let review: string | undefined;
+            if (status === 'completed') {
+              try {
+                const ratings = await getRatingsReceived(user.username, { limit: 100, page: 0 });
+                if (ratings?.content) {
+                  // Find rating from the owner for this guard
+                  const guardRating = ratings.content.find((r: RatingDto) => 
+                    r.authorId === announcement.ownerUsername
+                  );
+                  if (guardRating) {
+                    rating = guardRating.score;
+                    review = guardRating.comment;
+                  }
+                }
+              } catch (err) {
+                console.warn('Failed to fetch ratings:', err);
+              }
+            }
+
+            const { animals, plants } = parseCareType(announcement.careTypeLabel || '');
+
+            // Format period and duration
+            let period = 'Date non disponible';
+            let duration = 'Non disponible';
+            
+            if (startDate && endDate) {
+              period = formatPeriod(announcement.startDate!, announcement.endDate!);
+              duration = calculateDuration(announcement.startDate!, announcement.endDate!);
+            } else if (startDate) {
+              period = formatDate(announcement.startDate!);
+              duration = 'Date de fin non définie';
+            } else if (app.createdAt) {
+              period = formatDate(app.createdAt);
+              duration = 'Non disponible';
+            }
+
+            const guardData: GuardData = {
+              id: app.id.toString(),
+              title: announcement.title || `Annonce #${announcement.id}`,
+              location: announcement.location || 'Non disponible',
+              period,
+              duration,
+              owner: ownerInfo ? `${ownerInfo.firstName || ''} ${ownerInfo.lastName || ''}`.trim() || announcement.ownerUsername || 'Propriétaire' : announcement.ownerUsername || 'Propriétaire',
+              ownerAvatar: ownerInfo?.profilePhoto,
+              payment: announcement.remuneration || 0,
+              rating,
+              review,
+              animals,
+              plants,
+              photos: announcement.publicImages?.length || 0,
+              status: status === 'current' ? 'in_progress' : status === 'upcoming' ? 'confirmed' : 'completed',
+              daysLeft: endDate && status === 'current' ? calculateDaysLeft(announcement.endDate!) : undefined,
+              announcementId: announcement.id,
+            };
+            
+            console.log(`Created guardData for application ${app.id}:`, {
+              id: guardData.id,
+              title: guardData.title,
+              status: guardData.status,
+              period: guardData.period,
+            });
+
+            return { guardData, status };
+          } catch (err) {
+            console.error(`Error processing application ${app.id}:`, err);
+            return null;
+          }
+        });
+
+        const results = await Promise.all(guardDataPromises);
+        const validResults = results.filter(r => r !== null) as Array<{ guardData: GuardData; status: string }>;
+
+        console.log('Valid guard results:', validResults.length);
+
+        const completed: GuardData[] = [];
+        const upcoming: GuardData[] = [];
+        const current: GuardData[] = [];
+
+        validResults.forEach(({ guardData, status }) => {
+          console.log(`Guard ${guardData.id} (${guardData.title}): status=${status}, period=${guardData.period}`);
+          if (status === 'completed') {
+            completed.push(guardData);
+          } else if (status === 'upcoming') {
+            upcoming.push(guardData);
+          } else {
+            current.push(guardData);
+          }
+        });
+
+        console.log(`Final counts - completed: ${completed.length}, upcoming: ${upcoming.length}, current: ${current.length}`);
+
+        // Sort completed by date (most recent first)
+        completed.sort((a, b) => {
+          const dateA = new Date(a.period.split(' - ')[1] || a.period);
+          const dateB = new Date(b.period.split(' - ')[1] || b.period);
+          return dateB.getTime() - dateA.getTime();
+        });
+
+        // Sort upcoming by date (soonest first)
+        upcoming.sort((a, b) => {
+          const dateA = new Date(a.period.split(' - ')[0]);
+          const dateB = new Date(b.period.split(' - ')[0]);
+          return dateA.getTime() - dateB.getTime();
+        });
+
+        setGuardHistory({ completed, upcoming, current });
+        
+        // Auto-select completed tab if there are completed guards and current tab is empty
+        if (completed.length > 0 && current.length === 0 && upcoming.length === 0) {
+          setActiveTab('completed');
+        }
+      } catch (err) {
+        console.error('Error fetching guard history:', err);
+        setError('Erreur lors du chargement de l\'historique des gardes');
+      } finally {
+        setIsLoading(false);
+      }
+  }, [user?.username, listApplications, getAnnouncementById, getRatingsReceived, getUserByUsername]);
+
+  useEffect(() => {
+    fetchGuardHistory();
+  }, [fetchGuardHistory]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -129,9 +437,9 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
           <View style={styles.ownerInfo}>
             <View style={styles.avatar}>
               <ImageWithFallback 
-                src={guard.ownerAvatar} 
+                source={guard.ownerAvatar ? { uri: guard.ownerAvatar } : { uri: '' }}
                 style={styles.avatarImage}
-                alt={guard.owner}
+                fallbackIcon="person"
               />
             </View>
             <View style={styles.guardInfo}>
@@ -214,9 +522,9 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
           <View style={styles.ownerInfo}>
             <View style={styles.avatar}>
               <ImageWithFallback 
-                src={guard.ownerAvatar} 
+                source={guard.ownerAvatar ? { uri: guard.ownerAvatar } : { uri: '' }}
                 style={styles.avatarImage}
-                alt={guard.owner}
+                fallbackIcon="person"
               />
             </View>
             <View style={styles.guardInfo}>
@@ -283,9 +591,9 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
           <View style={styles.ownerInfo}>
             <View style={styles.avatar}>
               <ImageWithFallback 
-                src={guard.ownerAvatar} 
+                source={guard.ownerAvatar ? { uri: guard.ownerAvatar } : { uri: '' }}
                 style={styles.avatarImage}
-                alt={guard.owner}
+                fallbackIcon="person"
               />
             </View>
             <View style={styles.guardInfo}>
@@ -403,6 +711,54 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
     }
   };
 
+  const averageRating = useMemo(() => {
+    const ratedGuards = guardHistory.completed.filter(g => g.rating !== undefined);
+    if (ratedGuards.length === 0) return 0;
+    const sum = ratedGuards.reduce((acc, guard) => acc + (guard.rating || 0), 0);
+    return sum / ratedGuards.length;
+  }, [guardHistory.completed]);
+
+  const totalEarnings = useMemo(() => {
+    return guardHistory.completed.reduce((sum, guard) => sum + guard.payment, 0);
+  }, [guardHistory.completed]);
+
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <PageHeader
+          title="Mes gardes"
+          showBackButton={true}
+          onBack={onBack}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.loadingText}>Chargement de l'historique...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <PageHeader
+          title="Mes gardes"
+          showBackButton={true}
+          onBack={onBack}
+        />
+        <View style={styles.errorContainer}>
+          <Icon name="help-circle" size={48} color={theme.colors.destructive} />
+          <Text style={styles.errorText}>{error}</Text>
+          <Button onPress={() => {
+            fetchGuardHistory();
+          }} style={styles.retryButton}>
+            <Text>Réessayer</Text>
+          </Button>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <PageHeader
@@ -423,16 +779,13 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
               </View>
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>
-                  {guardHistory.completed.reduce((sum, guard) => sum + guard.payment, 0)}€
+                  {totalEarnings}€
                 </Text>
                 <Text style={styles.statLabel}>Gains totaux</Text>
               </View>
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>
-                  {guardHistory.completed.length > 0 
-                    ? (guardHistory.completed.reduce((sum, guard) => sum + guard.rating, 0) / guardHistory.completed.length).toFixed(1)
-                    : '0'
-                  }
+                  {averageRating > 0 ? averageRating.toFixed(1) : '0'}
                 </Text>
                 <Text style={styles.statLabel}>Note moyenne</Text>
               </View>
@@ -783,5 +1136,32 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: theme.colors.mutedForeground,
     textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+  },
+  loadingText: {
+    marginTop: theme.spacing.md,
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+  },
+  errorText: {
+    marginTop: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
+    fontSize: theme.fontSize.base,
+    color: theme.colors.foreground,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: theme.spacing.md,
   },
 });

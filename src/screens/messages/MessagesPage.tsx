@@ -32,9 +32,10 @@ interface UiMessage {
 
 interface MessagesPageProps {
   onBack?: () => void;
+  initialDiscussionId?: number;
 }
 
-export function MessagesPage({ onBack }: MessagesPageProps) {
+export function MessagesPage({ onBack, initialDiscussionId }: MessagesPageProps) {
   const { user } = useAuth();
   const {
     getMyDiscussions,
@@ -43,7 +44,7 @@ export function MessagesPage({ onBack }: MessagesPageProps) {
   } = useChatApi();
   const { getUserByUsername } = useUserApi();
 
-  const [selectedConversation, setSelectedConversation] = useState<number | null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<number | null>(initialDiscussionId || null);
   const [searchQuery, setSearchQuery] = useState('');
   const [newMessage, setNewMessage] = useState('');
 

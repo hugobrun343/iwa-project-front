@@ -16,6 +16,7 @@ interface Listing {
   isLiked?: boolean;
   rating?: number;
   reviewCount?: number;
+  ownerUsername?: string;
 }
 
 interface ListingsGridProps {

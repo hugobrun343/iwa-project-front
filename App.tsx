@@ -39,6 +39,7 @@ function MainApp() {
   const [currentPage, setCurrentPage] = useState("home");
   const [selectedListing, setSelectedListing] = useState(null);
   const [editingListingId, setEditingListingId] = useState<string | null>(null);
+  const [selectedDiscussionId, setSelectedDiscussionId] = useState<number | undefined>(undefined);
   const [listings, setListings] = useState([]);
   const [filteredListings, setFilteredListings] = useState([]);
   const [navigationStack, setNavigationStack] = useState(["home"]); // Stack pour navigation hiérarchique
@@ -79,6 +80,7 @@ function MainApp() {
               isLiked: isFavorite,
               rating: 4.5,
               reviewCount: 0,
+              ownerUsername: ann.ownerUsername || '',
             };
           }));
           
@@ -209,6 +211,7 @@ function MainApp() {
       return newStack;
     });
     setSelectedListing(null);
+    setSelectedDiscussionId(undefined);
   };
 
   const renderCurrentPage = () => {
@@ -218,7 +221,10 @@ function MainApp() {
           <ListingDetailPage
             listing={selectedListing}
             onBack={handleBack}
-            onMessage={() => handleNavigate("messages")}
+            onMessage={(discussionId) => {
+              setSelectedDiscussionId(discussionId);
+              handleNavigate("messages");
+            }}
           />
         ) : null;
       
@@ -243,6 +249,7 @@ function MainApp() {
         return (
           <MessagesPage
             onBack={handleBack}
+            initialDiscussionId={selectedDiscussionId}
           />
         );
       
