@@ -250,6 +250,7 @@ function MainApp() {
           <MessagesPage
             onBack={handleBack}
             initialDiscussionId={selectedDiscussionId}
+            onListingClick={(listing) => handleNavigate("listing-detail", listing)}
           />
         );
       

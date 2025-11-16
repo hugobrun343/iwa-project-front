@@ -47,11 +47,13 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
   const [specificInstructions, setSpecificInstructions] = useState<string | null>(null);
   const [isReserving, setIsReserving] = useState(false);
   const [hasApplication, setHasApplication] = useState(false);
-  const [applicationStatus, setApplicationStatus] = useState<'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED' | null>(null);
+  const [applicationStatus, setApplicationStatus] = useState<'SENT' | 'ACCEPTED' | 'REFUSED' | null>(null);
+  const [isCheckingApplication, setIsCheckingApplication] = useState(true);
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [customMessage, setCustomMessage] = useState('');
   const [isCreatingMessage, setIsCreatingMessage] = useState(false);
   const [pendingMessageData, setPendingMessageData] = useState<{ announcementId: number; ownerUsername: string } | null>(null);
+  const [ownerUsername, setOwnerUsername] = useState<string | null>(null);
 
   const { getAnnouncementById } = useAnnouncementsApi();
   const { getUserByUsername } = useUserApi();
@@ -67,6 +69,11 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
 
   // Fetch full announcement details and owner information
   useEffect(() => {
+    // Reset application state when listing changes
+    setHasApplication(false);
+    setApplicationStatus(null);
+    setIsCheckingApplication(true);
+    
     const fetchListingDetails = async () => {
       try {
         setIsLoadingOwner(true);
@@ -74,25 +81,67 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
         const fullAnnouncement = await getAnnouncementById(announcementId);
         
         if (fullAnnouncement) {
+          // Store owner username to check if current user is the owner
+          if (fullAnnouncement.ownerUsername) {
+            setOwnerUsername(fullAnnouncement.ownerUsername);
+          }
+          
           // Store specific instructions for important info section
           if (fullAnnouncement.specificInstructions) {
             setSpecificInstructions(fullAnnouncement.specificInstructions);
           }
 
           // Check if user already has an application for this listing
+          setIsCheckingApplication(true);
+          // Reset state first to ensure clean state
+          setHasApplication(false);
+          setApplicationStatus(null);
+          
           if (isAuthenticated && user?.username) {
             try {
               const applications = await listApplications({ 
                 announcementId: announcementId,
                 guardianUsername: user.username 
               });
-              if (applications && applications.length > 0) {
-                setHasApplication(true);
-                setApplicationStatus(applications[0].status);
+              
+              console.log('Applications check for announcement', announcementId, ':', applications);
+              
+              // Explicitly check for empty array or null/undefined
+              if (!applications || applications.length === 0) {
+                // No applications found - user can apply
+                console.log('No applications found - user can apply');
+                setHasApplication(false);
+                setApplicationStatus(null);
+              } else {
+                // Check first application
+                const app = applications[0];
+                console.log('Found application:', app);
+                
+                // Only set if we have a valid application with a valid status
+                const validStatuses = ['SENT', 'ACCEPTED', 'REFUSED'] as const;
+                if (app && app.status && validStatuses.includes(app.status as any)) {
+                  console.log('Valid application found with status:', app.status);
+                  setHasApplication(true);
+                  setApplicationStatus(app.status as 'SENT' | 'ACCEPTED' | 'REFUSED');
+                } else {
+                  console.log('Invalid application or status:', app?.status);
+                  setHasApplication(false);
+                  setApplicationStatus(null);
+                }
               }
             } catch (error) {
               console.error('Error checking applications:', error);
+              setHasApplication(false);
+              setApplicationStatus(null);
+            } finally {
+              setIsCheckingApplication(false);
             }
+          } else {
+            // Not authenticated, reset state
+            console.log('User not authenticated, resetting application state');
+            setHasApplication(false);
+            setApplicationStatus(null);
+            setIsCheckingApplication(false);
           }
 
           // Fetch owner information
@@ -218,14 +267,13 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
 
     if (hasApplication) {
       const statusMessages = {
-        'PENDING': 'Votre demande est en attente de réponse.',
+        'SENT': 'Votre demande est en attente de réponse.',
         'ACCEPTED': 'Votre demande a été acceptée.',
-        'REJECTED': 'Votre demande a été refusée.',
-        'CANCELLED': 'Votre demande a été annulée.',
+        'REFUSED': 'Votre demande a été refusée.',
       };
       Alert.alert(
         'Demande existante',
-        statusMessages[applicationStatus || 'PENDING'] || 'Vous avez déjà une demande pour cette annonce.'
+        statusMessages[applicationStatus || 'SENT'] || 'Vous avez déjà une demande pour cette annonce.'
       );
       return;
     }
@@ -237,13 +285,13 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
       const result = await createApplication({
         announcementId: announcementId,
         guardianUsername: user.username,
-        status: 'PENDING',
+        status: 'SENT',
         message: undefined, // Optional message
       });
 
       if (result) {
         setHasApplication(true);
-        setApplicationStatus('PENDING');
+        setApplicationStatus('SENT');
         Alert.alert(
           'Demande envoyée',
           'Votre demande de réservation a été envoyée avec succès. Le propriétaire vous contactera bientôt.',
@@ -263,21 +311,28 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
   };
 
   const getReserveButtonText = () => {
+    if (isOwner()) return 'Votre annonce';
     if (isReserving) return 'Envoi...';
-    if (hasApplication) {
+    if (isCheckingApplication) return 'Vérification...';
+    // Only show status if we explicitly have an application with a valid status
+    if (hasApplication === true && applicationStatus && (applicationStatus === 'SENT' || applicationStatus === 'ACCEPTED' || applicationStatus === 'REFUSED')) {
       const statusText = {
-        'PENDING': 'Demande envoyée',
+        'SENT': 'Demande envoyée',
         'ACCEPTED': 'Demande acceptée',
-        'REJECTED': 'Demande refusée',
-        'CANCELLED': 'Demande annulée',
+        'REFUSED': 'Demande refusée',
       };
-      return statusText[applicationStatus || 'PENDING'] || 'Déjà réservé';
+      return statusText[applicationStatus];
     }
+    // No application - user can apply
     return 'Réserver';
   };
 
+  const isOwner = () => {
+    return isAuthenticated && user?.username && ownerUsername && user.username === ownerUsername;
+  };
+
   const isReserveButtonDisabled = () => {
-    return isReserving || hasApplication || !isAuthenticated;
+    return isReserving || isCheckingApplication || hasApplication || !isAuthenticated || isOwner();
   };
 
   const handleSendCustomMessage = async () => {

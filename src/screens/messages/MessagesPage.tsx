@@ -9,8 +9,9 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { theme } from '../../styles/theme';
 import { useChatApi } from '../../hooks/api/useChatApi';
 import { useAuth } from '../../contexts/AuthContext';
-import { DiscussionDto, MessageDto, PublicUserDto } from '../../types/api';
+import { DiscussionDto, MessageDto, PublicUserDto, AnnouncementResponseDto } from '../../types/api';
 import { useUserApi } from '../../hooks/api/useUserApi';
+import { useAnnouncementsApi } from '../../hooks/api/useAnnouncementsApi';
 
 interface ConversationItem {
   id: number;
@@ -21,6 +22,7 @@ interface ConversationItem {
   unreadCount: number;
   isOnline: boolean;
   listingTitle?: string;
+  announcementId?: number;
 }
 
 interface UiMessage {
@@ -33,9 +35,10 @@ interface UiMessage {
 interface MessagesPageProps {
   onBack?: () => void;
   initialDiscussionId?: number;
+  onListingClick?: (listing: any) => void;
 }
 
-export function MessagesPage({ onBack, initialDiscussionId }: MessagesPageProps) {
+export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: MessagesPageProps) {
   const { user } = useAuth();
   const {
     getMyDiscussions,
@@ -43,6 +46,7 @@ export function MessagesPage({ onBack, initialDiscussionId }: MessagesPageProps)
     sendMessageToDiscussion,
   } = useChatApi();
   const { getUserByUsername } = useUserApi();
+  const { getAnnouncementById } = useAnnouncementsApi();
 
   const [selectedConversation, setSelectedConversation] = useState<number | null>(initialDiscussionId || null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,6 +56,7 @@ export function MessagesPage({ onBack, initialDiscussionId }: MessagesPageProps)
   const [messages, setMessages] = useState<MessageDto[]>([]);
   const [participantProfiles, setParticipantProfiles] = useState<Record<string, PublicUserDto>>({});
   const [conversationSummaries, setConversationSummaries] = useState<Record<number, { lastMessage: string; lastMessageAt: string }>>({});
+  const [announcementDetails, setAnnouncementDetails] = useState<Record<number, AnnouncementResponseDto>>({});
 
   const [isLoadingDiscussions, setIsLoadingDiscussions] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -209,6 +214,63 @@ export function MessagesPage({ onBack, initialDiscussionId }: MessagesPageProps)
     };
   }, [discussions, participantProfiles, getUserByUsername, resolveCounterpartId]);
 
+  // Fetch announcement details for discussions
+  useEffect(() => {
+    if (discussions.length === 0) {
+      return;
+    }
+
+    const announcementIds = Array.from(
+      new Set(
+        discussions
+          .map((discussion) => discussion.announcementId)
+          .filter((id): id is number => Boolean(id)),
+      ),
+    );
+
+    const missingIds = announcementIds.filter((id) => !(id in announcementDetails));
+    if (missingIds.length === 0) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    const fetchAnnouncements = async () => {
+      const entries = await Promise.all(
+        missingIds.map(async (id) => {
+          try {
+            const announcement = await getAnnouncementById(id);
+            if (announcement) {
+              return [id, announcement] as const;
+            }
+          } catch (error) {
+            console.warn("Impossible de récupérer l'annonce", id, error);
+          }
+          return null;
+        }),
+      );
+
+      if (!isCancelled) {
+        setAnnouncementDetails((prev) => {
+          const next = { ...prev };
+          entries.forEach((entry) => {
+            if (entry) {
+              const [id, announcement] = entry;
+              next[id] = announcement;
+            }
+          });
+          return next;
+        });
+      }
+    };
+
+    fetchAnnouncements();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [discussions, announcementDetails, getAnnouncementById]);
+
   useEffect(() => {
     if (!selectedConversation) {
       setMessages([]);
@@ -273,6 +335,9 @@ export function MessagesPage({ onBack, initialDiscussionId }: MessagesPageProps)
       const displayName = fullName || profile?.username || counterpartId || 'Utilisateur';
       const lastMessage = summary?.lastMessage ?? '';
 
+      const announcement = discussion.announcementId ? announcementDetails[discussion.announcementId] : undefined;
+      const listingTitle = announcement?.title || (discussion.announcementId ? `Annonce #${discussion.announcementId}` : undefined);
+
       return {
         conversation: {
           id: discussion.id,
@@ -282,7 +347,8 @@ export function MessagesPage({ onBack, initialDiscussionId }: MessagesPageProps)
           timestamp: formatListTimestamp(rawTimestamp),
           unreadCount: 0,
           isOnline: false,
-          listingTitle: discussion.announcementId ? `Annonce #${discussion.announcementId}` : undefined,
+          listingTitle,
+          announcementId: discussion.announcementId,
         } as ConversationItem,
         rawTimestamp,
       };
@@ -295,7 +361,7 @@ export function MessagesPage({ onBack, initialDiscussionId }: MessagesPageProps)
     });
 
     return itemsWithMeta.map((item) => item.conversation);
-  }, [discussions, participantProfiles, conversationSummaries, resolveCounterpartId, formatListTimestamp]);
+  }, [discussions, participantProfiles, conversationSummaries, announcementDetails, resolveCounterpartId, formatListTimestamp]);
 
   const filteredConversations = useMemo(() => {
     if (!searchQuery.trim()) {
@@ -412,11 +478,34 @@ export function MessagesPage({ onBack, initialDiscussionId }: MessagesPageProps)
           </View>
         </View>
 
-        {selectedConversationItem.listingTitle && (
-          <View style={styles.listingInfo}>
-            <Icon name="Star" size={16} color="#2563eb" />
+        {selectedConversationItem.listingTitle && selectedConversationItem.announcementId && (
+          <TouchableOpacity
+            style={styles.listingInfo}
+            onPress={() => {
+              const announcement = announcementDetails[selectedConversationItem.announcementId!];
+              if (announcement && onListingClick) {
+                // Convert announcement to listing format
+                const listing = {
+                  id: String(announcement.id),
+                  title: announcement.title,
+                  location: announcement.location,
+                  price: announcement.remuneration || 0,
+                  period: announcement.startDate ? new Date(announcement.startDate).toLocaleDateString('fr-FR') : '',
+                  frequency: announcement.visitFrequency || "À discuter",
+                  description: announcement.description || '',
+                  imageUrl: announcement.publicImages?.[0]?.imageUrl || '',
+                  publicImages: announcement.publicImages?.map(img => img.imageUrl) || [],
+                  tags: announcement.careTypeLabel ? [announcement.careTypeLabel] : [],
+                  isLiked: false,
+                };
+                onListingClick(listing);
+              }
+            }}
+          >
+            <Icon name="Home" size={16} color="#2563eb" />
             <Text style={styles.listingTitle}>{selectedConversationItem.listingTitle}</Text>
-          </View>
+            <Icon name="ChevronRight" size={16} color="#2563eb" />
+          </TouchableOpacity>
         )}
 
         <ScrollView style={styles.messagesContainer} showsVerticalScrollIndicator={false}>
@@ -795,8 +884,10 @@ const styles = StyleSheet.create({
     borderBottomColor: '#bfdbfe',
   },
   listingTitle: {
+    flex: 1,
     fontSize: theme.fontSize.sm,
     color: '#1e40af',
+    fontWeight: theme.fontWeight.medium,
   },
   messagesContainer: {
     flex: 1,

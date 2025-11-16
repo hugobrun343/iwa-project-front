@@ -85,7 +85,7 @@ export interface ApplicationPayload {
   announcementId: number;
   guardianUsername: string;
   message?: string;
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED';
+  status: 'SENT' | 'ACCEPTED' | 'REFUSED';
 }
 
 export interface ApplicationResponseDto extends ApplicationPayload {
@@ -158,8 +158,6 @@ export interface ApplicationFilters {
   announcementId?: number;
   guardianUsername?: string;
   status?: ApplicationPayload['status'];
-  page?: number;
-  limit?: number;
 }
 
 export interface DiscussionQueryParams {

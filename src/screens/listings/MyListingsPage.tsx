@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
@@ -7,6 +7,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Icon } from '../../components/ui/Icon';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { ImageWithFallback } from '../../components/ui/ImageWithFallback';
+import { ApplicationsPanel } from '../../components/applications/ApplicationsPanel';
 import { theme } from '../../styles/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAnnouncementsApi } from '../../hooks/api/useAnnouncementsApi';
@@ -20,8 +21,10 @@ interface MyListingsPageProps {
 
 export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyListingsPageProps) {
   const [selectedTab, setSelectedTab] = useState("active");
-  const [userListings, setUserListings] = useState<any>({ active: [], draft: [], completed: [] });
+  const [userListings, setUserListings] = useState<any>({ active: [], completed: [] });
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<{ id: number; title: string } | null>(null);
+  const [showApplicationsPanel, setShowApplicationsPanel] = useState(false);
   
   const { user, isAuthenticated, accessToken } = useAuth();
   const { listAnnouncementsByOwner } = useAnnouncementsApi();
@@ -49,7 +52,6 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
               frequency: ann.visitFrequency || "À discuter",
               status: ann.status?.toLowerCase() || 'pending',
               applications: applications?.length || 0,
-              views: 0, // Not available in API yet
               imageUrl: ann.publicImages?.[0]?.imageUrl || null,
               tags: ann.careTypeLabel ? [ann.careTypeLabel] : [],
               createdAt: ann.createdAt ? new Date(ann.createdAt).toLocaleDateString('fr-FR') : 'Récemment',
@@ -59,7 +61,6 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
           // Group by status
           const grouped = {
             active: listingsWithStats.filter(l => l.status === 'published'),
-            draft: listingsWithStats.filter(l => l.status === 'in_progress'),
             completed: listingsWithStats.filter(l => l.status === 'completed'),
           };
 
@@ -79,8 +80,6 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
     switch (status) {
       case "active":
         return <Badge variant="outline" style={styles.activeBadge}>Active</Badge>;
-      case "draft":
-        return <Badge variant="outline" style={styles.draftBadge}>Brouillon</Badge>;
       case "completed":
         return <Badge variant="outline" style={styles.completedBadge}>Terminée</Badge>;
       default:
@@ -125,20 +124,27 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
             <Text style={styles.detailLabel}>Période :</Text>
             <Text style={styles.detailValue}>{listing.period}</Text>
           </View>
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Vues :</Text>
-            <View style={styles.statRow}>
-              <Icon name="eye" size={12} color={theme.colors.mutedForeground} />
-              <Text style={styles.detailValue}>{listing.views}</Text>
-            </View>
-          </View>
-          <View style={styles.detailItem}>
+          <TouchableOpacity 
+            style={styles.detailItem}
+            onPress={() => {
+              if (listing.applications > 0) {
+                setSelectedAnnouncement({ id: Number(listing.id), title: listing.title });
+                setShowApplicationsPanel(true);
+              }
+            }}
+            disabled={listing.applications === 0}
+          >
             <Text style={styles.detailLabel}>Candidatures :</Text>
             <View style={styles.statRow}>
               <Icon name="person" size={12} color={theme.colors.mutedForeground} />
-              <Text style={styles.detailValue}>{listing.applications}</Text>
+              <Text style={[styles.detailValue, listing.applications > 0 && styles.clickableValue]}>
+                {listing.applications}
+              </Text>
+              {listing.applications > 0 && (
+                <Icon name="ChevronRight" size={12} color={theme.colors.mutedForeground} />
+              )}
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.tagsRow}>
@@ -192,7 +198,6 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
 
   const tabCounts = {
     active: userListings.active.length,
-    draft: userListings.draft.length,
     completed: userListings.completed.length,
   };
 
@@ -200,8 +205,6 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
     switch (selectedTab) {
       case "active":
         return userListings.active;
-      case "draft":
-        return userListings.draft;
       case "completed":
         return userListings.completed;
       default:
@@ -229,12 +232,6 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
         </View>
         <View style={styles.statItem}>
           <Text style={styles.statValue}>
-            {userListings.active.reduce((acc, listing) => acc + listing.views, 0)}
-          </Text>
-          <Text style={styles.statLabel}>Vues totales</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>
             {userListings.active.reduce((acc, listing) => acc + listing.applications, 0)}
           </Text>
           <Text style={styles.statLabel}>Candidatures</Text>
@@ -245,7 +242,6 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
       <View style={styles.tabsContainer}>
         {[
           { id: "active", label: "Actives", count: tabCounts.active },
-          { id: "draft", label: "Brouillons", count: tabCounts.draft },
           { id: "completed", label: "Terminées", count: tabCounts.completed },
         ].map((tab) => (
           <Button
@@ -279,12 +275,10 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
             <Icon name="Plus" size={64} color={theme.colors.mutedForeground} />
             <Text style={styles.emptyTitle}>
               {selectedTab === "active" && "Aucune annonce active"}
-              {selectedTab === "draft" && "Aucun brouillon"}
               {selectedTab === "completed" && "Aucune garde terminée"}
             </Text>
             <Text style={styles.emptyDescription}>
               {selectedTab === "active" && "Créez votre première annonce pour commencer à recevoir des candidatures."}
-              {selectedTab === "draft" && "Vos brouillons d'annonces apparaîtront ici."}
               {selectedTab === "completed" && "Vos annonces terminées apparaîtront ici avec les détails de la garde."}
             </Text>
             {selectedTab === "active" && (
@@ -296,6 +290,59 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
           </View>
         )}
       </ScrollView>
+
+      {/* Applications Panel */}
+      {selectedAnnouncement && (
+        <ApplicationsPanel
+          visible={showApplicationsPanel}
+          announcementId={selectedAnnouncement.id}
+          announcementTitle={selectedAnnouncement.title}
+          onClose={() => {
+            setShowApplicationsPanel(false);
+            setSelectedAnnouncement(null);
+          }}
+          onApplicationUpdated={() => {
+            // Reload listings to update application counts
+            const loadUserListings = async () => {
+              if (!isAuthenticated || !user?.username || !accessToken) return;
+
+              try {
+                const announcements = await listAnnouncementsByOwner(user.username);
+                
+                if (announcements) {
+                  const listingsWithStats = await Promise.all(announcements.map(async (ann) => {
+                    const applications = await listApplications({ announcementId: ann.id });
+                    
+                    return {
+                      id: String(ann.id),
+                      title: ann.title,
+                      location: ann.location,
+                      price: ann.remuneration || 0,
+                      period: ann.startDate ? new Date(ann.startDate).toLocaleDateString('fr-FR') : '',
+                      frequency: ann.visitFrequency || "À discuter",
+                      status: ann.status?.toLowerCase() || 'pending',
+                      applications: applications?.length || 0,
+                      imageUrl: ann.publicImages?.[0]?.imageUrl || null,
+                      tags: ann.careTypeLabel ? [ann.careTypeLabel] : [],
+                      createdAt: ann.createdAt ? new Date(ann.createdAt).toLocaleDateString('fr-FR') : 'Récemment',
+                    };
+                  }));
+
+                  const grouped = {
+                    active: listingsWithStats.filter(l => l.status === 'published'),
+                    completed: listingsWithStats.filter(l => l.status === 'completed'),
+                  };
+
+                  setUserListings(grouped);
+                }
+              } catch (error) {
+                console.error('Error reloading listings:', error);
+              }
+            };
+            loadUserListings();
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -451,9 +498,6 @@ const styles = StyleSheet.create({
     padding: theme.spacing.xs,
   },
   activeBadge: {
-    borderColor: '#d1d5db',
-  },
-  draftBadge: {
     borderColor: '#d1d5db',
   },
   completedBadge: {
@@ -627,5 +671,9 @@ const styles = StyleSheet.create({
   },
   buttonIcon: {
     marginRight: theme.spacing.xs,
+  },
+  clickableValue: {
+    color: theme.colors.primary,
+    fontWeight: theme.fontWeight.medium,
   },
 });

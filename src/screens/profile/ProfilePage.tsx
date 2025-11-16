@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Icon } from '../../components/ui/Icon';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Switch } from '../../components/ui/Switch';
+import { ApplicationsPanel } from '../../components/applications/ApplicationsPanel';
+import { MyApplicationsPanel } from '../../components/applications/MyApplicationsPanel';
 import { useAuth } from '../../contexts/AuthContext';
 import { ImageWithFallback } from '../../components/ui/ImageWithFallback';
 import { theme } from '../../styles/theme';
@@ -13,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { useAnnouncementsApi } from '../../hooks/api/useAnnouncementsApi';
 import { useApplicationsApi } from '../../hooks/api/useApplicationsApi';
 import { useRatingsApi } from '../../hooks/api/useRatingsApi';
-import { RatingDto } from '../../types/api';
+import { RatingDto, AnnouncementResponseDto } from '../../types/api';
 
 type ActivityReview = RatingDto & { note?: number; commentaire?: string; dateAvis?: string };
 
@@ -34,6 +36,12 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
   const [rating, setRating] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
   const [recentReviews, setRecentReviews] = useState<ActivityReview[]>([]);
+  const [showApplicationsModal, setShowApplicationsModal] = useState(false);
+  const [userAnnouncements, setUserAnnouncements] = useState<AnnouncementResponseDto[]>([]);
+  const [isLoadingAnnouncements, setIsLoadingAnnouncements] = useState(false);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<{ id: number; title: string } | null>(null);
+  const [showApplicationsPanel, setShowApplicationsPanel] = useState(false);
+  const [showMyApplicationsPanel, setShowMyApplicationsPanel] = useState(false);
 
   const normalizeRating = (
     rating: RatingDto & { note?: number; commentaire?: string; dateAvis?: string },
@@ -125,6 +133,43 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
     reviewCount: reviewCount,
   };
 
+  const loadAnnouncementsForModal = async () => {
+    if (!isAuthenticated || !user?.username || !accessToken) return;
+    
+    try {
+      setIsLoadingAnnouncements(true);
+      const announcements = await listAnnouncementsByOwner(user.username);
+      if (announcements) {
+        // Get application counts for each announcement
+        const announcementsWithCounts = await Promise.all(
+          announcements.map(async (ann) => {
+            const applications = await listApplications({ announcementId: ann.id });
+            return {
+              ...ann,
+              applicationCount: applications?.length || 0,
+            };
+          })
+        );
+        setUserAnnouncements(announcementsWithCounts);
+      }
+    } catch (error) {
+      console.error('Error loading announcements:', error);
+    } finally {
+      setIsLoadingAnnouncements(false);
+    }
+  };
+
+  const handleOpenApplicationsModal = () => {
+    setShowApplicationsModal(true);
+    loadAnnouncementsForModal();
+  };
+
+  const handleSelectAnnouncement = (announcement: AnnouncementResponseDto) => {
+    setSelectedAnnouncement({ id: announcement.id, title: announcement.title });
+    setShowApplicationsModal(false);
+    setShowApplicationsPanel(true);
+  };
+
   const menuItems = [
     {
       icon: "Home",
@@ -132,6 +177,20 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
       description: "Gérer vos demandes de garde",
       count: userStats.listingsCreated,
       action: () => onNavigate?.("my-listings")
+    },
+    {
+      icon: "Person",
+      label: "Candidatures reçues",
+      description: "Gérer les candidatures reçues",
+      count: undefined,
+      action: handleOpenApplicationsModal
+    },
+    {
+      icon: "Document",
+      label: "Mes candidatures",
+      description: "Voir mes candidatures envoyées",
+      count: undefined,
+      action: () => setShowMyApplicationsPanel(true)
     },
     {
       icon: "Clock",
@@ -425,6 +484,105 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
           </View>
         </View>
       </ScrollView>
+
+      {/* Applications Selection Modal */}
+      <Modal
+        visible={showApplicationsModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowApplicationsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Sélectionner une annonce</Text>
+              <TouchableOpacity
+                onPress={() => setShowApplicationsModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Icon name="close" size={24} color={theme.colors.foreground} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
+              {isLoadingAnnouncements ? (
+                <View style={styles.modalLoadingContainer}>
+                  <ActivityIndicator size="large" color={theme.colors.primary} />
+                  <Text style={styles.modalLoadingText}>Chargement des annonces...</Text>
+                </View>
+              ) : userAnnouncements.length === 0 ? (
+                <View style={styles.modalEmptyState}>
+                  <Icon name="Home" size={64} color={theme.colors.mutedForeground} />
+                  <Text style={styles.modalEmptyTitle}>Aucune annonce</Text>
+                  <Text style={styles.modalEmptyDescription}>
+                    Vous n'avez pas encore créé d'annonce.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.announcementsList}>
+                  {userAnnouncements.map((announcement) => (
+                    <TouchableOpacity
+                      key={announcement.id}
+                      style={styles.announcementItem}
+                      onPress={() => handleSelectAnnouncement(announcement)}
+                    >
+                      <View style={styles.announcementItemContent}>
+                        <Text style={styles.announcementItemTitle}>{announcement.title}</Text>
+                        <Text style={styles.announcementItemLocation}>{announcement.location}</Text>
+                      </View>
+                      <View style={styles.announcementItemRight}>
+                        {announcement.applicationCount > 0 && (
+                          <Badge variant="secondary" style={styles.applicationCountBadge}>
+                            {announcement.applicationCount}
+                          </Badge>
+                        )}
+                        <Icon name="ChevronRight" size={16} color={theme.colors.mutedForeground} />
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Applications Panel */}
+      {selectedAnnouncement && (
+        <ApplicationsPanel
+          visible={showApplicationsPanel}
+          announcementId={selectedAnnouncement.id}
+          announcementTitle={selectedAnnouncement.title}
+          onClose={() => {
+            setShowApplicationsPanel(false);
+            setSelectedAnnouncement(null);
+          }}
+          onApplicationUpdated={() => {
+            // Reload announcements to update counts
+            loadAnnouncementsForModal();
+            // Also reload user stats
+            const fetchUserStats = async () => {
+              if (!isAuthenticated || !user?.username || !accessToken) return;
+
+              try {
+                const announcements = await listAnnouncementsByOwner(user.username);
+                if (announcements) {
+                  setListingsCreated(announcements.length);
+                }
+              } catch (error) {
+                console.error('Error reloading user stats:', error);
+              }
+            };
+            fetchUserStats();
+          }}
+        />
+      )}
+
+      {/* My Applications Panel */}
+      <MyApplicationsPanel
+        visible={showMyApplicationsPanel}
+        onClose={() => setShowMyApplicationsPanel(false)}
+      />
     </View>
   );
 }
@@ -692,5 +850,99 @@ const styles = StyleSheet.create({
   versionText: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.mutedForeground,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: theme.colors.background,
+    borderTopLeftRadius: theme.borderRadius.xl,
+    borderTopRightRadius: theme.borderRadius.xl,
+    maxHeight: '90%',
+    paddingBottom: 30,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  modalTitle: {
+    fontSize: theme.fontSize.xl,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.foreground,
+  },
+  modalCloseButton: {
+    padding: theme.spacing.xs,
+  },
+  modalScrollView: {
+    flex: 1,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.lg,
+  },
+  modalLoadingContainer: {
+    paddingVertical: theme.spacing['4xl'],
+    alignItems: 'center',
+    gap: theme.spacing.md,
+  },
+  modalLoadingText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
+  },
+  modalEmptyState: {
+    paddingVertical: theme.spacing['4xl'],
+    alignItems: 'center',
+    gap: theme.spacing.md,
+  },
+  modalEmptyTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: theme.fontWeight.medium,
+    color: theme.colors.foreground,
+  },
+  modalEmptyDescription: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
+    textAlign: 'center',
+    paddingHorizontal: theme.spacing.xl,
+  },
+  announcementsList: {
+    gap: theme.spacing.md,
+    paddingBottom: theme.spacing.xl,
+  },
+  announcementItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.muted + '30',
+    borderRadius: theme.borderRadius.lg,
+  },
+  announcementItemContent: {
+    flex: 1,
+  },
+  announcementItemTitle: {
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.medium,
+    color: theme.colors.foreground,
+    marginBottom: theme.spacing.xs,
+  },
+  announcementItemLocation: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
+  },
+  announcementItemRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  applicationCountBadge: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 2,
   },
 });
