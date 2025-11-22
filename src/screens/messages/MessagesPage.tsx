@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
@@ -40,6 +40,7 @@ interface MessagesPageProps {
 
 export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: MessagesPageProps) {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const {
     getMyDiscussions,
     getDiscussionMessages,
@@ -63,6 +64,7 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [discussionsError, setDiscussionsError] = useState<string | null>(null);
   const [messagesError, setMessagesError] = useState<string | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const currentUserIdentifiers = useMemo(
     () =>
@@ -443,8 +445,8 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
   };
 
   if (selectedConversation && selectedConversationItem) {
-    return (
-      <SafeAreaView style={styles.container}>
+    const content = (
+      <>
         <View style={styles.conversationHeaderView}>
           <Button
             variant="ghost"
@@ -478,7 +480,7 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
           </View>
         </View>
 
-        {selectedConversationItem.listingTitle && selectedConversationItem.announcementId && (
+        {selectedConversationItem.listingTitle && selectedConversationItem.announcementId ? (
           <TouchableOpacity
             style={styles.listingInfo}
             onPress={() => {
@@ -506,9 +508,21 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
             <Text style={styles.listingTitle}>{selectedConversationItem.listingTitle}</Text>
             <Icon name="ChevronRight" size={16} color="#2563eb" />
           </TouchableOpacity>
-        )}
+        ) : selectedConversationItem.listingTitle ? (
+          <View style={styles.listingInfo}>
+            <Text style={styles.listingTitle}>{selectedConversationItem.listingTitle}</Text>
+          </View>
+        ) : null}
 
-        <ScrollView style={styles.messagesContainer} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          ref={scrollViewRef}
+          style={styles.messagesContainer} 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.messagesContent}
+          onContentSizeChange={() => {
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+          }}
+        >
           {isLoadingMessages && <Text style={styles.loadingText}>Chargement des messages…</Text>}
           {!isLoadingMessages && messagesError && (
             <Text style={styles.errorText}>{messagesError}</Text>
@@ -576,7 +590,31 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
             <Icon name="Send" size={18} color={theme.colors.primaryForeground} />
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </>
+    );
+
+    if (Platform.OS === 'ios') {
+      return (
+        <View style={styles.container}>
+          <SafeAreaView style={styles.safeArea} edges={['top']}>
+            <KeyboardAvoidingView
+              style={styles.keyboardAvoidingView}
+              behavior="padding"
+              keyboardVerticalOffset={0}
+            >
+              {content}
+            </KeyboardAvoidingView>
+          </SafeAreaView>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.container}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          {content}
+        </SafeAreaView>
+      </View>
     );
   }
 
@@ -676,6 +714,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f9fafb',
+  },
+  safeArea: {
+    flex: 1,
   },
   header: {
     backgroundColor: '#f9fafb',
@@ -889,11 +930,16 @@ const styles = StyleSheet.create({
     color: '#1e40af',
     fontWeight: theme.fontWeight.medium,
   },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
   messagesContainer: {
     flex: 1,
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.lg,
-    paddingBottom: 80, // Space for message input
+  },
+  messagesContent: {
+    paddingBottom: theme.spacing.md,
   },
   messageWrapper: {
     marginBottom: theme.spacing.lg,
@@ -945,16 +991,12 @@ const styles = StyleSheet.create({
     color: theme.colors.primaryForeground + '70',
   },
   messageInput: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: theme.spacing.sm,
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? theme.spacing.md : theme.spacing.sm,
     backgroundColor: theme.colors.background,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,

@@ -68,8 +68,7 @@ export function Filters({
                 styles.filterTagText,
                 activeFilters.includes(filter.value) && styles.filterTagTextActive
               ]}>
-                {filter.label}
-                {filter.count !== undefined && ` (${filter.count})`}
+                {filter.label}{filter.count !== undefined ? ` (${filter.count})` : ''}
               </Text>
             </TouchableOpacity>
           ))}

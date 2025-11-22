@@ -29,9 +29,14 @@ export class ApiError<T = any> extends Error {
   }
 }
 
-const DEFAULT_BASE_URL =
+// Get the backend URL from environment or use defaults
+// For mobile: use localhost if running on emulator, or use network IP for physical device
+// For web: use current origin or localhost
+export const DEFAULT_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ??
-  (Platform.OS === 'web' ? window.location.origin : 'http://localhost:8080');
+  (Platform.OS === 'web' 
+    ? (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8080')
+    : 'http://localhost:8080');
 
 const buildUrl = (path: string, query?: Record<string, QueryParamValue>, baseUrl = DEFAULT_BASE_URL) => {
   const url = path.startsWith('http') ? new URL(path) : new URL(path.replace(/^\//, ''), `${baseUrl.replace(/\/$/, '')}/`);
@@ -80,7 +85,14 @@ export interface ApiClient {
   ) => Promise<TResponse>;
 }
 
-export const createApiClient = (getAccessToken: () => string | null, baseUrl = DEFAULT_BASE_URL): ApiClient => {
+export const createApiClient = (
+  getAccessToken: () => string | null,
+  baseUrl = DEFAULT_BASE_URL,
+  onTokenRefresh?: () => Promise<void>
+): ApiClient => {
+  let isRefreshing = false;
+  let refreshPromise: Promise<void> | null = null;
+
   const request = async <TResponse, TBody = unknown>(
     path: string,
     options: ApiRequestOptions<TBody> = {}
@@ -88,33 +100,64 @@ export const createApiClient = (getAccessToken: () => string | null, baseUrl = D
     const { method = 'GET', body, headers, query, withAuth = true, signal } = options;
     const url = buildUrl(path, query, baseUrl);
 
-    const finalHeaders: Record<string, string> = {
+    // Prepare body once (can be reused for retry)
+    let payload: BodyInit | undefined;
+    const finalHeadersBase: Record<string, string> = {
       Accept: 'application/json',
       ...(headers ?? {}),
     };
-
-    let payload: BodyInit | undefined;
 
     if (body instanceof FormData) {
       payload = body;
     } else if (body !== undefined && body !== null) {
       payload = JSON.stringify(body);
-      finalHeaders['Content-Type'] = finalHeaders['Content-Type'] ?? 'application/json';
+      finalHeadersBase['Content-Type'] = finalHeadersBase['Content-Type'] ?? 'application/json';
     }
 
-    if (withAuth) {
-      const token = getAccessToken();
-      if (token) {
+    const makeRequest = async (token: string | null): Promise<Response> => {
+      const finalHeaders = { ...finalHeadersBase };
+
+      if (withAuth && token) {
         finalHeaders.Authorization = `Bearer ${token}`;
       }
-    }
 
-    const response = await fetch(url, {
-      method,
-      headers: finalHeaders,
-      body: payload,
-      signal,
-    });
+      return fetch(url, {
+        method,
+        headers: finalHeaders,
+        body: payload,
+        signal,
+      });
+    };
+
+    let token = withAuth ? getAccessToken() : null;
+    let response = await makeRequest(token);
+
+    // If we get a 401 and have auth enabled, try to refresh the token
+    if (response.status === 401 && withAuth && onTokenRefresh) {
+      // Wait for any ongoing refresh to complete
+      if (isRefreshing && refreshPromise) {
+        await refreshPromise;
+      } else if (!isRefreshing) {
+        // Start a new refresh
+        isRefreshing = true;
+        refreshPromise = onTokenRefresh()
+          .then(() => {
+            isRefreshing = false;
+            refreshPromise = null;
+          })
+          .catch((error) => {
+            isRefreshing = false;
+            refreshPromise = null;
+            throw error;
+          });
+        
+        await refreshPromise;
+      }
+
+      // Retry the request with the new token
+      token = getAccessToken();
+      response = await makeRequest(token);
+    }
 
     const parsed = await parseResponse(response);
 

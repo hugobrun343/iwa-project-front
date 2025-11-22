@@ -29,6 +29,7 @@ import './src/i18n';
 import { useTranslation } from 'react-i18next';
 import { useAnnouncementsApi } from './src/hooks/api/useAnnouncementsApi';
 import { useFavoritesApi } from './src/hooks/api/useFavoritesApi';
+import StripeProviderWrapper from './src/stripe/StripeProviderWrapper';
 
 // Main App Component with Authentication
 function MainApp() {
@@ -414,11 +415,13 @@ function MainApp() {
   );
 }
 
-// Root App Component with AuthProvider
+// Root App Component with AuthProvider and StripeProvider
 export default function App() {
   return (
     <AuthProvider>
-      <MainApp />
+      <StripeProviderWrapper>
+        <MainApp />
+      </StripeProviderWrapper>
     </AuthProvider>
   );
 }

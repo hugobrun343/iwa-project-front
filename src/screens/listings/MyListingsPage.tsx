@@ -274,12 +274,12 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
           <View style={styles.emptyState}>
             <Icon name="Plus" size={64} color={theme.colors.mutedForeground} />
             <Text style={styles.emptyTitle}>
-              {selectedTab === "active" && "Aucune annonce active"}
-              {selectedTab === "completed" && "Aucune garde terminée"}
+              {selectedTab === "active" ? "Aucune annonce active" : "Aucune garde terminée"}
             </Text>
             <Text style={styles.emptyDescription}>
-              {selectedTab === "active" && "Créez votre première annonce pour commencer à recevoir des candidatures."}
-              {selectedTab === "completed" && "Vos annonces terminées apparaîtront ici avec les détails de la garde."}
+              {selectedTab === "active" 
+                ? "Créez votre première annonce pour commencer à recevoir des candidatures."
+                : "Vos annonces terminées apparaîtront ici avec les détails de la garde."}
             </Text>
             {selectedTab === "active" && (
               <Button onPress={onCreateListing} style={styles.emptyActionButton}>

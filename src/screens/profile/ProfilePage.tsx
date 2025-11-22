@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, ActivityIndicator, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
@@ -15,9 +16,13 @@ import { useTranslation } from 'react-i18next';
 import { useAnnouncementsApi } from '../../hooks/api/useAnnouncementsApi';
 import { useApplicationsApi } from '../../hooks/api/useApplicationsApi';
 import { useRatingsApi } from '../../hooks/api/useRatingsApi';
-import { RatingDto, AnnouncementResponseDto } from '../../types/api';
+import { RatingDto, AnnouncementResponseDto, PrivateUserDto } from '../../types/api';
+import { useUserApi } from '../../hooks/api/useUserApi';
+import { usePrices, useSubscribe, useRegister, useUserSubscription } from '../../hooks/api/useStripeApi';
+import { PREMIUM_PRICE_ID, BACKEND_URL } from '../../config/config';
 
 type ActivityReview = RatingDto & { note?: number; commentaire?: string; dateAvis?: string };
+type AnnouncementWithApplications = AnnouncementResponseDto & { applicationCount: number };
 
 interface ProfilePageProps {
   onNavigate?: (page: string) => void;
@@ -30,6 +35,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
   const { listAnnouncementsByOwner } = useAnnouncementsApi();
   const { listApplications } = useApplicationsApi();
   const { getAverageRating, getRatingCount, getRatingsReceived } = useRatingsApi();
+  const { getMyProfile } = useUserApi();
   
   const [listingsCreated, setListingsCreated] = useState(0);
   const [guardsCompleted, setGuardsCompleted] = useState(0);
@@ -37,11 +43,51 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
   const [reviewCount, setReviewCount] = useState(0);
   const [recentReviews, setRecentReviews] = useState<ActivityReview[]>([]);
   const [showApplicationsModal, setShowApplicationsModal] = useState(false);
-  const [userAnnouncements, setUserAnnouncements] = useState<AnnouncementResponseDto[]>([]);
+  const [userAnnouncements, setUserAnnouncements] = useState<AnnouncementWithApplications[]>([]);
   const [isLoadingAnnouncements, setIsLoadingAnnouncements] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<{ id: number; title: string } | null>(null);
   const [showApplicationsPanel, setShowApplicationsPanel] = useState(false);
   const [showMyApplicationsPanel, setShowMyApplicationsPanel] = useState(false);
+  const [profileDetails, setProfileDetails] = useState<PrivateUserDto | null>(null);
+  
+  // Stripe subscription hooks
+  const { prices, currentPriceId, activeSubscriptionId, loading: subscriptionLoading, cancelAtPeriodEnd, currentPeriodEnd, subscribeTo } = usePrices(BACKEND_URL, accessToken);
+  const { email: registerEmail, setEmail: setRegisterEmail, loading: registerLoading, createCustomer } = useRegister();
+  const [clientSecret, setClientSecret] = useState<string | undefined>(undefined);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  
+  // Check for active subscription
+  const { hasActiveSubscription } = useUserSubscription(customerId, BACKEND_URL, accessToken);
+  
+  // Load customerId from storage
+  useEffect(() => {
+    const loadCustomerId = async () => {
+      const id = await AsyncStorage.getItem('customerId');
+      setCustomerId(id);
+    };
+    loadCustomerId();
+  }, []);
+  
+  const handlePaymentSuccess = () => {
+    setIsProcessingPayment(false);
+    setClientSecret(undefined);
+    Alert.alert('Succès', 'Votre abonnement Premium a été activé avec succès !');
+  };
+  
+  // useSubscribe will automatically present payment sheet when clientSecret is set
+  useSubscribe(clientSecret, handlePaymentSuccess);
+  
+  // Reset processing state if payment is cancelled or fails (timeout after 30 seconds)
+  useEffect(() => {
+    if (isProcessingPayment && clientSecret) {
+      const timeout = setTimeout(() => {
+        setIsProcessingPayment(false);
+        setClientSecret(undefined);
+      }, 30000); // 30 seconds timeout
+      return () => clearTimeout(timeout);
+    }
+  }, [isProcessingPayment, clientSecret]);
 
   const normalizeRating = (
     rating: RatingDto & { note?: number; commentaire?: string; dateAvis?: string },
@@ -126,6 +172,33 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
     accessToken,
   ]);
 
+  useEffect(() => {
+    const loadProfileDetails = async () => {
+      if (!isAuthenticated || !accessToken) return;
+      try {
+        const details = await getMyProfile();
+        if (details) {
+          setProfileDetails(details);
+        }
+      } catch (error) {
+        console.error('Error fetching profile details:', error);
+      }
+    };
+
+    loadProfileDetails();
+  }, [getMyProfile, isAuthenticated, accessToken]);
+
+  const displayName = useMemo(() => {
+    const first = profileDetails?.firstName ?? user?.firstName ?? '';
+    const last = profileDetails?.lastName ?? user?.lastName ?? '';
+    const combined = `${first} ${last}`.trim();
+    return combined || user?.fullName || user?.username || 'Utilisateur';
+  }, [profileDetails, user]);
+
+  const displayUsername = useMemo(() => {
+    return profileDetails?.username ?? user?.username ?? null;
+  }, [profileDetails, user]);
+
   const userStats = {
     listingsCreated: listingsCreated,
     guardsCompleted: guardsCompleted,
@@ -141,14 +214,14 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
       const announcements = await listAnnouncementsByOwner(user.username);
       if (announcements) {
         // Get application counts for each announcement
-        const announcementsWithCounts = await Promise.all(
+        const announcementsWithCounts: AnnouncementWithApplications[] = await Promise.all(
           announcements.map(async (ann) => {
             const applications = await listApplications({ announcementId: ann.id });
             return {
               ...ann,
               applicationCount: applications?.length || 0,
             };
-          })
+          }),
         );
         setUserAnnouncements(announcementsWithCounts);
       }
@@ -168,6 +241,106 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
     setSelectedAnnouncement({ id: announcement.id, title: announcement.title });
     setShowApplicationsModal(false);
     setShowApplicationsPanel(true);
+  };
+
+  const memberSinceDate = profileDetails?.registrationDate ?? user?.date_inscription;
+
+  const memberSinceLabel = useMemo(() => {
+    if (!memberSinceDate) {
+      return 'janvier 2023';
+    }
+    const parsed = new Date(memberSinceDate);
+    if (Number.isNaN(parsed.getTime())) {
+      return 'janvier 2023';
+    }
+    return parsed.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  }, [memberSinceDate]);
+
+  // Check if user has premium subscription
+  const isPremium = useMemo(() => {
+    if (!prices || !currentPriceId) return false;
+    // Check if current price is a recurring subscription (not free)
+    const currentPrice = prices.find(p => p.id === currentPriceId);
+    return currentPrice && currentPrice.type === 'recurring' && !cancelAtPeriodEnd;
+  }, [prices, currentPriceId, cancelAtPeriodEnd]);
+
+  // Handle premium subscription payment
+  const handlePremiumSubscription = async () => {
+    // Always navigate to subscription page to see all plans and manage subscription
+    onNavigate?.('subscription');
+    return;
+
+    try {
+      setIsProcessingPayment(true);
+      
+      // Check if customer exists
+      let customerId = await AsyncStorage.getItem('customerId');
+      
+      // If no customer, create one
+      if (!customerId) {
+        const userEmail = profileDetails?.email ?? user?.email ?? '';
+        if (!userEmail) {
+          Alert.alert('Erreur', 'Veuillez d\'abord compléter votre profil avec une adresse email.');
+          setIsProcessingPayment(false);
+          return;
+        }
+        
+        // Get name and phone from profile
+        const firstName = profileDetails?.firstName ?? user?.firstName ?? '';
+        const lastName = profileDetails?.lastName ?? user?.lastName ?? '';
+        const fullName = `${firstName} ${lastName}`.trim() || displayName || user?.username || 'Utilisateur';
+        const phone = profileDetails?.phoneNumber ?? user?.telephone ?? '';
+        
+        // Create customer directly with email, name, and phone
+        try {
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+          };
+          if (accessToken) {
+            headers.Authorization = `Bearer ${accessToken}`;
+          }
+          
+          const res = await fetch(`${BACKEND_URL}/api/payments/create-customer`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ 
+              email: userEmail,
+              name: fullName,
+              phone: phone || undefined // Only include phone if available
+            })
+          });
+          const json = await res.json();
+          if (res.ok && json.customerId) {
+            await AsyncStorage.setItem('customerId', json.customerId);
+            customerId = json.customerId;
+            setCustomerId(json.customerId); // Update state for useUserSubscription hook
+          } else {
+            throw new Error(json.message || 'Impossible de créer le compte client');
+          }
+        } catch (error: any) {
+          throw new Error(error.message || 'Impossible de créer le compte client');
+        }
+      }
+
+      // Subscribe to premium
+      const result = await subscribeTo(PREMIUM_PRICE_ID);
+      
+      // If clientSecret is returned, we need to show payment sheet
+      // The useSubscribe hook will automatically present the payment sheet when clientSecret is set
+      if (result?.clientSecret) {
+        setClientSecret(result.clientSecret);
+        // Payment sheet will be presented automatically by useSubscribe hook
+      } else {
+        // Free subscription or already paid
+        setIsProcessingPayment(false);
+        Alert.alert('Succès', 'Votre abonnement a été activé avec succès !');
+      }
+    } catch (error: any) {
+      console.error('Subscription error:', error);
+      Alert.alert('Erreur', error.message || 'Une erreur est survenue lors de l\'abonnement.');
+      setIsProcessingPayment(false);
+      setClientSecret(undefined);
+    }
   };
 
   const menuItems = [
@@ -212,9 +385,14 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
     {
       icon: "Star",
       label: "Abonnement",
-      description: "Plan Gratuit - Passer au Premium",
-      badge: "Gratuit",
-      action: () => onNavigate?.("subscription")
+      description: isPremium 
+        ? "Plan Premium actif" 
+        : cancelAtPeriodEnd 
+        ? "Premium - Annulation programmée"
+        : "Plan Gratuit - Passer au Premium",
+      badge: isPremium ? "Premium" : cancelAtPeriodEnd ? "Bientôt expiré" : "Gratuit",
+      action: handlePremiumSubscription,
+      isLoading: isProcessingPayment || subscriptionLoading || registerLoading
     },
     {
       icon: "Bell",
@@ -251,9 +429,9 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
 
           <View style={styles.profileInfo}>
             <View style={styles.avatar}>
-              {user?.photo_profil ? (
+              {profileDetails?.profilePhoto || user?.photo_profil ? (
                 <ImageWithFallback
-                  source={{ uri: user.photo_profil }}
+                  source={{ uri: profileDetails?.profilePhoto ?? user?.photo_profil }}
                   style={styles.avatarImage}
                   fallbackIcon="User"
                 />
@@ -262,10 +440,18 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
               )}
             </View>
             <View style={styles.profileDetails}>
-              <Text style={styles.profileName}>{user?.fullName || user?.username || 'Utilisateur'}</Text>
-              <Text style={styles.profileEmail}>{user?.email}</Text>
+              <View style={styles.nameRow}>
+                <Text style={styles.profileName}>{displayName}</Text>
+                {hasActiveSubscription && (
+                  <Badge variant="secondary" style={styles.premiumBadge}>
+                    <Icon name="Star" size={12} color={theme.colors.primary} />
+                    <Text style={styles.premiumBadgeText}>Premium</Text>
+                  </Badge>
+                )}
+              </View>
+              {displayUsername ? <Text style={styles.profileUsername}>@{displayUsername}</Text> : null}
               <Text style={styles.memberSince}>
-                Membre depuis {user?.date_inscription ? new Date(user.date_inscription).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : 'janvier 2023'}
+                Membre depuis {memberSinceLabel}
               </Text>
               <View style={styles.profileMeta}>
                 <View style={styles.ratingContainer}>
@@ -321,9 +507,9 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                       </View>
                     </View>
                     <View style={styles.menuItemRight}>
-                      {item.count && (
+                      {item.count !== undefined && item.count !== null && item.count > 0 && (
                         <Badge variant="secondary" style={styles.countBadge}>
-                          {item.count}
+                          {String(item.count)}
                         </Badge>
                       )}
                       <Icon name="ChevronRight" size={16} color={theme.colors.mutedForeground} />
@@ -344,7 +530,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                     key={index}
                     style={styles.menuItem}
                     onPress={item.action}
-                    disabled={!item.action}
+                    disabled={!item.action || item.isLoading}
                   >
                     <View style={styles.menuItemLeft}>
                       <View style={styles.settingsIcon}>
@@ -356,24 +542,33 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                       </View>
                     </View>
                     <View style={styles.menuItemRight}>
-                      {item.badge && (
-                        <Badge 
-                          variant="outline" 
-                  style={item.badge === "Gratuit" ? 
-                    StyleSheet.flatten([styles.settingsBadge, styles.freeBadge]) : 
-                    StyleSheet.flatten([styles.settingsBadge, styles.verifiedSettingsBadge])
-                  }
-                        >
-                          {item.badge}
-                        </Badge>
-                      )}
-                      {item.hasSwitch ? (
-                        <Switch 
-                          value={notificationsEnabled} 
-                          onValueChange={setNotificationsEnabled}
-                        />
+                      {item.isLoading ? (
+                        <ActivityIndicator size="small" color={theme.colors.primary} />
                       ) : (
-                        <Icon name="ChevronRight" size={16} color={theme.colors.mutedForeground} />
+                        <>
+                          {item.badge && (
+                            <Badge 
+                              variant="outline" 
+                              style={
+                                item.badge === "Gratuit" 
+                                  ? StyleSheet.flatten([styles.settingsBadge, styles.freeBadge]) 
+                                  : item.badge === "Premium"
+                                  ? StyleSheet.flatten([styles.settingsBadge, styles.premiumBadge])
+                                  : StyleSheet.flatten([styles.settingsBadge, styles.verifiedSettingsBadge])
+                              }
+                            >
+                              {item.badge}
+                            </Badge>
+                          )}
+                          {item.hasSwitch ? (
+                            <Switch 
+                              value={notificationsEnabled} 
+                              onValueChange={setNotificationsEnabled}
+                            />
+                          ) : (
+                            <Icon name="ChevronRight" size={16} color={theme.colors.mutedForeground} />
+                          )}
+                        </>
                       )}
                     </View>
                   </TouchableOpacity>
@@ -656,14 +851,39 @@ const styles = StyleSheet.create({
     color: theme.colors.mutedForeground,
     marginBottom: theme.spacing.xs,
   },
+  profileUsername: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.mutedForeground,
+    marginBottom: theme.spacing.xs,
+  },
   profileDetails: {
     flex: 1,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.xs,
+    flexWrap: 'wrap',
   },
   profileName: {
     fontSize: theme.fontSize.lg,
     fontWeight: theme.fontWeight.medium,
     color: theme.colors.foreground,
-    marginBottom: theme.spacing.xs,
+  },
+  premiumBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 2,
+    backgroundColor: theme.colors.primary + '10',
+    borderColor: theme.colors.primary,
+  },
+  premiumBadgeText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.primary,
+    fontWeight: theme.fontWeight.medium,
   },
   memberSince: {
     fontSize: theme.fontSize.sm,

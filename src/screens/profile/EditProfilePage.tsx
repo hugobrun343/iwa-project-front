@@ -11,6 +11,7 @@ import { ImageWithFallback } from '../../components/ui/ImageWithFallback';
 import { theme } from '../../styles/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { useUserApi } from '../../hooks/api/useUserApi';
+import { LabelDto } from '../../types/api';
 
 interface EditProfilePageProps {
   onBack: () => void;
@@ -25,6 +26,8 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
     updateMyLanguages,
     getMySpecialisations,
     updateMySpecialisations,
+    getLanguages,
+    getSpecialisations,
     isLoading: apiLoading 
   } = useUserApi();
 
@@ -44,6 +47,8 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
     availability: "",
     priceRange: ""
   });
+  const [availableLanguages, setAvailableLanguages] = useState<LabelDto[]>([]);
+  const [availableSpecialisations, setAvailableSpecialisations] = useState<LabelDto[]>([]);
 
   const [notifications, setNotifications] = useState({
     messages: true,
@@ -68,9 +73,13 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
         setIsLoading(true);
         
         // Load profile data
-        const profileData = await getMyProfile();
-        const languagesData = await getMyLanguages();
-        const specialisationsData = await getMySpecialisations();
+        const [profileData, languagesData, specialisationsData, allLanguages, allSpecialisations] = await Promise.all([
+          getMyProfile(),
+          getMyLanguages(),
+          getMySpecialisations(),
+          getLanguages(),
+          getSpecialisations(),
+        ]);
 
         if (profileData) {
           setProfile({
@@ -87,6 +96,9 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
             priceRange: "" // Not available in API yet
           });
         }
+
+        setAvailableLanguages(allLanguages ?? []);
+        setAvailableSpecialisations(allSpecialisations ?? []);
 
         // Load preferences if available
         if (profileData?.preferences) {
@@ -127,7 +139,22 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
     };
 
     loadProfile();
-  }, [user, getMyProfile, getMyLanguages, getMySpecialisations]);
+  }, [user, getMyProfile, getMyLanguages, getMySpecialisations, getLanguages, getSpecialisations]);
+
+  const toggleSelection = (type: 'language' | 'skill', value: string) => {
+    setProfile(prev => {
+      const key = type === 'language' ? 'languages' : 'skills';
+      const exists = prev[key as 'languages' | 'skills'].includes(value);
+      const updated = exists
+        ? prev[key as 'languages' | 'skills'].filter(item => item !== value)
+        : [...prev[key as 'languages' | 'skills'], value];
+
+      return {
+        ...prev,
+        [key]: updated,
+      };
+    });
+  };
 
   const handleSave = async () => {
     if (!user) return;
@@ -340,26 +367,76 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
             
             <View style={styles.inputGroup}>
               <Label>Langues parlées</Label>
-              <Input
-                value={profile.languages.join(', ')}
-                onChangeText={(text) => setProfile(prev => ({ 
-                  ...prev, 
-                  languages: text.split(',').map(lang => lang.trim()) 
-                }))}
-                placeholder="Français, Anglais, Espagnol..."
-              />
+              <View style={styles.choiceList}>
+                {availableLanguages.length === 0 ? (
+                  <Text style={styles.emptyChoiceText}>Aucune langue disponible</Text>
+                ) : (
+                  availableLanguages.map((lang) => {
+                    const selected = profile.languages.includes(lang.label);
+                    return (
+                      <TouchableOpacity
+                        key={lang.label}
+                        style={[
+                          styles.choicePill,
+                          selected && styles.choicePillSelected,
+                        ]}
+                        onPress={() => toggleSelection('language', lang.label)}
+                      >
+                        <Text
+                          style={[
+                            styles.choicePillText,
+                            selected && styles.choicePillTextSelected,
+                          ]}
+                        >
+                          {lang.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
+              {profile.languages.length > 0 && (
+                <Text style={styles.selectedChoiceText}>
+                  Sélectionnées : {profile.languages.join(', ')}
+                </Text>
+              )}
             </View>
 
             <View style={styles.inputGroup}>
               <Label>Spécialisations</Label>
-              <Input
-                value={profile.skills.join(', ')}
-                onChangeText={(text) => setProfile(prev => ({ 
-                  ...prev, 
-                  skills: text.split(',').map(skill => skill.trim()) 
-                }))}
-                placeholder="Chiens, Chats, Plantes..."
-              />
+              <View style={styles.choiceList}>
+                {availableSpecialisations.length === 0 ? (
+                  <Text style={styles.emptyChoiceText}>Aucune spécialisation disponible</Text>
+                ) : (
+                  availableSpecialisations.map((spec) => {
+                    const selected = profile.skills.includes(spec.label);
+                    return (
+                      <TouchableOpacity
+                        key={spec.label}
+                        style={[
+                          styles.choicePill,
+                          selected && styles.choicePillSelected,
+                        ]}
+                        onPress={() => toggleSelection('skill', spec.label)}
+                      >
+                        <Text
+                          style={[
+                            styles.choicePillText,
+                            selected && styles.choicePillTextSelected,
+                          ]}
+                        >
+                          {spec.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
+              {profile.skills.length > 0 && (
+                <Text style={styles.selectedChoiceText}>
+                  Sélectionnées : {profile.skills.join(', ')}
+                </Text>
+              )}
             </View>
 
             <View style={styles.inputGroup}>
@@ -631,6 +708,42 @@ const styles = StyleSheet.create({
   },
   inputGroup: {
     marginBottom: theme.spacing.lg,
+  },
+  choiceList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: theme.spacing.sm,
+  },
+  choicePill: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginRight: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    backgroundColor: theme.colors.background,
+  },
+  choicePillSelected: {
+    borderColor: '#22c55e',
+    backgroundColor: '#dcfce7',
+  },
+  choicePillText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
+  },
+  choicePillTextSelected: {
+    color: '#15803d',
+    fontWeight: theme.fontWeight.medium,
+  },
+  emptyChoiceText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.mutedForeground,
+  },
+  selectedChoiceText: {
+    marginTop: theme.spacing.xs,
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.mutedForeground,
   },
   charCount: {
     fontSize: theme.fontSize.xs,

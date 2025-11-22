@@ -113,7 +113,7 @@ export function FilterModal({
               style={styles.applyButton}
             >
               <Text style={styles.applyButtonText}>
-                Appliquer {selectedFilters.length > 0 && `(${selectedFilters.length})`}
+                Appliquer{selectedFilters.length > 0 ? ` (${selectedFilters.length})` : ''}
               </Text>
             </Button>
           </View>
