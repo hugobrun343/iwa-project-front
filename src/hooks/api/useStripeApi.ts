@@ -273,7 +273,12 @@ export function usePrices(backendUrl = BACKEND_URL, accessToken?: string | null)
         
         // Check if response is ok and has content
         if (!res.ok) {
-          console.warn('load prices: response not ok', res.status, res.statusText);
+          if (res.status === 429) {
+            const retryAfter = res.headers.get('Retry-After');
+            console.warn(`⚠️ Rate limit exceeded (429) loading prices. ${retryAfter ? `Retry after ${retryAfter}s` : 'Please try again later.'}`);
+          } else {
+            console.warn('load prices: response not ok', res.status, res.statusText);
+          }
           return;
         }
         
@@ -428,19 +433,98 @@ export function usePrices(backendUrl = BACKEND_URL, accessToken?: string | null)
   const cancelSubscription = useCallback(async (subId?: string) => {
     const id = subId || activeSubscriptionId;
     if (!id) throw new Error('Aucun abonnement actif');
-    const res = await fetch(`${backendUrl}/cancel-subscription`, {
-      method: 'POST',
-      headers: createHeaders(accessToken),
-      body: JSON.stringify({ subscriptionId: id, atPeriodEnd: true })
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Impossible de résilier');
-    // Mettre à jour l'état local pour refléter la résiliation programmée
+    
     try {
-      setCancelAtPeriodEnd(true);
-      if (json.currentPeriodEnd) setCurrentPeriodEnd(json.currentPeriodEnd);
-    } catch (e) { /* ignore */ }
-    return json;
+      // Get customerId to try customer-based endpoint
+      const customerId = await AsyncStorage.getItem('customerId');
+      
+      // Try different possible endpoints in order
+      const endpoints = [
+        // Most common patterns
+        { url: `${backendUrl}/api/payments/subscription/cancel`, body: { subscriptionId: id, atPeriodEnd: true } },
+        { url: `${backendUrl}/api/payments/subscriptions/${id}/cancel`, body: { atPeriodEnd: true } },
+        { url: `${backendUrl}/api/payments/cancel-subscription`, body: { subscriptionId: id, atPeriodEnd: true } },
+        // Customer-based endpoints
+        ...(customerId ? [
+          { url: `${backendUrl}/api/payments/customer/${customerId}/cancel-subscription`, body: { subscriptionId: id, atPeriodEnd: true } },
+          { url: `${backendUrl}/api/payments/customer/${customerId}/subscription/cancel`, body: { subscriptionId: id, atPeriodEnd: true } },
+        ] : []),
+      ];
+      
+      let lastError: any = null;
+      
+      for (const { url, body } of endpoints) {
+        try {
+          console.log('Trying endpoint:', url, 'with body:', body);
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: createHeaders(accessToken),
+            body: JSON.stringify(body)
+          });
+          
+          const responseText = await res.text();
+          
+          // If 404, try next endpoint
+          if (res.status === 404) {
+            console.log('Endpoint not found:', url);
+            lastError = new Error(`Endpoint non trouvé: ${url}`);
+            continue;
+          }
+          
+          // If empty response but OK, consider it success
+          if (!responseText || responseText.trim().length === 0) {
+            if (res.ok) {
+              try {
+                setCancelAtPeriodEnd(true);
+                console.log('Successfully cancelled subscription using endpoint:', url);
+                return { success: true };
+              } catch (e) {
+                console.warn('cancelSubscription: error updating state', e);
+              }
+            }
+            lastError = new Error('Réponse vide du serveur');
+            continue;
+          }
+          
+          // Parse JSON response
+          let json;
+          try {
+            json = JSON.parse(responseText);
+          } catch (parseError) {
+            console.error('cancelSubscription: JSON parse error', parseError, 'Response:', responseText.substring(0, 200));
+            lastError = new Error('Erreur de format de réponse du serveur');
+            continue;
+          }
+          
+          if (!res.ok) {
+            lastError = new Error(json.error || json.message || 'Impossible de résilier');
+            continue;
+          }
+          
+          // Success! Update state
+          try {
+            setCancelAtPeriodEnd(true);
+            if (json.currentPeriodEnd) setCurrentPeriodEnd(json.currentPeriodEnd);
+            if (json.activePriceId) setCurrentPriceId(json.activePriceId);
+          } catch (e) { 
+            console.warn('cancelSubscription: error updating state', e);
+          }
+          
+          console.log('Successfully cancelled subscription using endpoint:', url);
+          return json;
+        } catch (fetchError: any) {
+          console.warn(`Failed to cancel with endpoint ${url}:`, fetchError);
+          lastError = fetchError;
+          continue;
+        }
+      }
+      
+      // All endpoints failed
+      throw lastError || new Error('Aucun endpoint valide trouvé pour annuler l\'abonnement. Veuillez vérifier la configuration du backend.');
+    } catch (error: any) {
+      console.error('cancelSubscription error:', error);
+      throw error;
+    }
   }, [backendUrl, activeSubscriptionId, accessToken]);
 
   return { prices, currentPriceId, activeSubscriptionId, loading, cancelAtPeriodEnd, currentPeriodEnd, subscribeTo, cancelSubscription } as const;

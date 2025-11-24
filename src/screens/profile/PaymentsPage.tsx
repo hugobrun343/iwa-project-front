@@ -1,161 +1,225 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Icon } from '../../components/ui/Icon';
 import { theme } from '../../styles/theme';
+import { DEFAULT_BASE_URL } from '../../services/apiClient';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface PaymentsPageProps {
   onBack: () => void;
 }
 
+type Payout = {
+  paymentId: string;
+  jobId: string | null;
+  amount: number;
+  currency: string;
+  status: string;
+  created: string;
+  source: string | null;
+  invoiceId?: string | null;
+  subscriptionId?: string | null;
+};
+
+type TransactionItem = {
+  id: string;
+  description: string;
+  meta: string;
+  amountText: string;
+  status: string;
+  isPositive: boolean;
+};
+
+const STATUS_STYLES: Record<
+  string,
+  { label: string; badgeBg: string; badgeBorder: string; textColor: string }
+> = {
+  succeeded: {
+    label: 'Réussi',
+    badgeBg: '#f0fdf4',
+    badgeBorder: '#bbf7d0',
+    textColor: '#15803d',
+  },
+  requires_payment_method: {
+    label: 'Action requise',
+    badgeBg: '#fff7ed',
+    badgeBorder: '#fed7aa',
+    textColor: '#c2410c',
+  },
+  processing: {
+    label: 'En cours',
+    badgeBg: '#ecfeff',
+    badgeBorder: '#bae6fd',
+    textColor: '#0ea5e9',
+  },
+  canceled: {
+    label: 'Annulé',
+    badgeBg: '#fef2f2',
+    badgeBorder: '#fecaca',
+    textColor: '#b91c1c',
+  },
+};
+
 export function PaymentsPage({ onBack }: PaymentsPageProps) {
-  const paymentMethods = [
-    {
-      id: "1",
-      type: "card",
-      brand: "visa",
-      last4: "4242",
-      expiryMonth: "12",
-      expiryYear: "2025",
-      isDefault: true
-    },
-    {
-      id: "2", 
-      type: "card",
-      brand: "mastercard",
-      last4: "5555",
-      expiryMonth: "08",
-      expiryYear: "2026",
-      isDefault: false
-    }
-  ];
+  const [payouts, setPayouts] = useState<Payout[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const transactions = [
-    {
-      id: "1",
-      type: "payment_received",
-      amount: 245,
-      description: "Garde - Appartement moderne avec vue",
-      date: "12 Jan 2024",
-      status: "completed",
-      from: "Marie Dubois"
-    },
-    {
-      id: "2",
-      type: "payment_received", 
-      amount: 225,
-      description: "Garde - Golden Retriever énergique",
-      date: "25 Déc 2023",
-      status: "completed",
-      from: "Thomas Martin"
-    },
-    {
-      id: "3",
-      type: "subscription",
-      amount: -9.99,
-      description: "Abonnement Premium - Janvier 2024",
-      date: "1 Jan 2024",
-      status: "completed",
-      to: "GuardHome"
-    },
-    {
-      id: "4",
-      type: "payment_received",
-      amount: 140,
-      description: "Garde - Jungle urbaine",
-      date: "10 Nov 2023", 
-      status: "completed",
-      from: "Camille Leroy"
-    }
-  ];
+  const gatewayUrl = (process.env.EXPO_PUBLIC_GATEWAY_URL || DEFAULT_BASE_URL || '').replace(/\/$/, '');
+  const userId = 'cus_TTD51FIIZVBdet';
+  const { accessToken } = useAuth();
 
-  const PaymentMethodCard = ({ method }: { method: any }) => (
-    <Card style={[styles.paymentCard, method.isDefault && styles.defaultCard]}>
-      <CardContent style={styles.paymentContent}>
-        <View style={styles.paymentHeader}>
-          <View style={styles.cardInfo}>
-            <View style={styles.cardBrand}>
-              <Icon 
-                name="card" 
-                size={24} 
-                color={method.brand === 'visa' ? '#1434CB' : '#EB001B'} 
-              />
-              <Text style={styles.brandText}>
-                {method.brand === 'visa' ? 'Visa' : 'Mastercard'}
-              </Text>
-            </View>
-            <Text style={styles.cardNumber}>•••• •••• •••• {method.last4}</Text>
-            <Text style={styles.cardExpiry}>Expire {method.expiryMonth}/{method.expiryYear}</Text>
-          </View>
-          
-          <View style={styles.cardActions}>
-            {method.isDefault && (
-              <Badge variant="outline" style={styles.defaultBadge}>
-                <Text style={styles.defaultText}>Par défaut</Text>
-              </Badge>
-            )}
-            <TouchableOpacity style={styles.moreButton}>
-              <Icon name="ellipsis-vertical" size={20} color={theme.colors.mutedForeground} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </CardContent>
-    </Card>
+  const fetchPayouts = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setErrorMessage(null);
+      const response = await fetch(
+        `${gatewayUrl}/api/payments/payouts?userId=${encodeURIComponent(userId)}`,
+        {
+          headers: {
+            Accept: 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+        },
+      );
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(
+          text ||
+            (response.status === 401
+              ? 'Session expirée, veuillez vous reconnecter.'
+              : `Impossible de charger les transactions (HTTP ${response.status})`),
+        );
+      }
+
+      const data = await response.json();
+      setPayouts(Array.isArray(data?.payouts) ? data.payouts : []);
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error('Erreur lors du chargement des paiements:', err);
+      setErrorMessage(err instanceof Error ? err.message : 'Impossible de charger les transactions.');
+      setPayouts([]);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [accessToken, gatewayUrl, userId]);
+
+  useEffect(() => {
+    fetchPayouts();
+  }, [fetchPayouts]);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchPayouts();
+  };
+
+  const formatAmount = (amount: number, currency: string) => {
+    const formatter = new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: (currency || 'EUR').toUpperCase(),
+    });
+
+    return formatter.format((amount || 0) / 100);
+  };
+
+  const formatDate = (value: string) => {
+    if (!value) return 'Date inconnue';
+    try {
+      return new Date(value).toLocaleString('fr-FR', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return value;
+    }
+  };
+
+  const transactions: TransactionItem[] = useMemo(
+    () =>
+      payouts.map((payout) => ({
+        id: payout.paymentId,
+        description:
+          payout.source === 'subscription'
+            ? 'Abonnement Premium'
+            : payout.jobId
+            ? `Mission #${payout.jobId}`
+            : 'Paiement',
+        meta: [
+          payout.subscriptionId ? `Abonnement ${payout.subscriptionId}` : null,
+          payout.invoiceId ? `Facture ${payout.invoiceId}` : null,
+          formatDate(payout.created),
+        ]
+          .filter(Boolean)
+          .join(' • '),
+        amountText: formatAmount(payout.amount, payout.currency),
+        status: payout.status,
+        isPositive: payout.amount >= 0,
+      })),
+    [payouts],
   );
 
-  const TransactionCard = ({ transaction }: { transaction: any }) => (
+  const TransactionCard = ({ transaction }: { transaction: TransactionItem }) => {
+    const statusInfo =
+      STATUS_STYLES[transaction.status] ||
+      STATUS_STYLES.processing;
+
+    return (
     <Card style={styles.transactionCard}>
       <CardContent style={styles.transactionContent}>
         <View style={styles.transactionHeader}>
           <View style={styles.transactionIcon}>
             <Icon 
-              name={
-                transaction.type === 'payment_received' ? 'arrow-down' :
-                transaction.type === 'subscription' ? 'card' : 'swap-horizontal'
-              }
+              name={transaction.isPositive ? 'arrow-down' : 'arrow-up'}
               size={20} 
-              color={transaction.amount > 0 ? '#22c55e' : '#ef4444'} 
+              color={transaction.isPositive ? '#22c55e' : '#ef4444'} 
             />
           </View>
           
           <View style={styles.transactionDetails}>
             <Text style={styles.transactionDescription}>{transaction.description}</Text>
-            <Text style={styles.transactionMeta}>
-              {transaction.from && `De ${transaction.from} • `}
-              {transaction.to && `À ${transaction.to} • `}
-              {transaction.date}
-            </Text>
+            <Text style={styles.transactionMeta}>{transaction.meta}</Text>
           </View>
           
           <View style={styles.transactionAmount}>
             <Text style={[
               styles.amountText,
-              { color: transaction.amount > 0 ? '#22c55e' : '#ef4444' }
+              { color: transaction.isPositive ? '#22c55e' : '#ef4444' }
             ]}>
-              {transaction.amount > 0 ? '+' : ''}{transaction.amount}€
+              {transaction.amountText}
             </Text>
             <Badge 
               variant="outline" 
               style={[
                 styles.statusBadge,
-                transaction.status === 'completed' && styles.completedBadge
+                {
+                  backgroundColor: statusInfo.badgeBg,
+                  borderColor: statusInfo.badgeBorder,
+                },
               ]}
             >
               <Text style={[
                 styles.statusText,
-                transaction.status === 'completed' && styles.completedText
+                { color: statusInfo.textColor }
               ]}>
-                {transaction.status === 'completed' ? 'Terminé' : 'En attente'}
+                {statusInfo.label}
               </Text>
             </Badge>
           </View>
         </View>
       </CardContent>
     </Card>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -166,77 +230,55 @@ export function PaymentsPage({ onBack }: PaymentsPageProps) {
             <Icon name="arrow-back" size={24} color={theme.colors.foreground} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Paiements</Text>
+          <TouchableOpacity onPress={handleRefresh} disabled={isRefreshing} style={styles.refreshButton}>
+            <Icon name={isRefreshing ? 'refresh' : 'refresh'} size={20} color={theme.colors.primary} />
+            <Text style={[styles.refreshText, isRefreshing && styles.refreshTextDisabled]}>
+              {isRefreshing ? 'Actualisation...' : 'Actualiser'}
+            </Text>
+          </TouchableOpacity>
         </View>
+        {lastUpdated && (
+          <Text style={styles.lastUpdatedText}>
+            Mis à jour le {new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' }).format(lastUpdated)}
+          </Text>
+        )}
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-
-        {/* Payment Methods */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Moyens de paiement</Text>
-            <TouchableOpacity>
-              <Text style={styles.addButton}>Ajouter</Text>
-            </TouchableOpacity>
-          </View>
-          
-          {paymentMethods.map((method) => (
-            <PaymentMethodCard key={method.id} method={method} />
-          ))}
-        </View>
 
         {/* Recent Transactions */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Transactions récentes</Text>
-            <TouchableOpacity>
-              <Text style={styles.viewAllButton}>Tout voir</Text>
-            </TouchableOpacity>
+            <View style={styles.sectionActions}>
+              {errorMessage && (
+                <Text style={styles.errorText}>
+                  {errorMessage}
+                </Text>
+              )}
+            </View>
           </View>
-          
-          {transactions.map((transaction) => (
-            <TransactionCard key={transaction.id} transaction={transaction} />
-          ))}
+
+          {isLoading ? (
+            <View style={styles.loadingState}>
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+              <Text style={styles.loadingText}>Chargement des transactions...</Text>
+            </View>
+          ) : payouts.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Icon name="card" size={32} color={theme.colors.mutedForeground} />
+              <Text style={styles.emptyTitle}>Aucune transaction</Text>
+              <Text style={styles.emptySubtitle}>
+                Vos transactions récentes apparaîtront ici dès qu'elles seront disponibles.
+              </Text>
+            </View>
+          ) : (
+            transactions.map((transaction) => (
+              <TransactionCard key={transaction.id} transaction={transaction} />
+            ))
+          )}
         </View>
 
-        {/* Settings */}
-        <Card style={styles.settingsCard}>
-          <CardContent style={styles.settingsContent}>
-            <Text style={styles.sectionTitle}>Paramètres de paiement</Text>
-            
-            <TouchableOpacity style={styles.settingItem}>
-              <View style={styles.settingLeft}>
-                <Icon name="notifications" size={20} color={theme.colors.mutedForeground} />
-                <Text style={styles.settingText}>Notifications de paiement</Text>
-              </View>
-              <Icon name="chevron-forward" size={20} color={theme.colors.mutedForeground} />
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.settingItem}>
-              <View style={styles.settingLeft}>
-                <Icon name="shield-checkmark" size={20} color={theme.colors.mutedForeground} />
-                <Text style={styles.settingText}>Sécurité et vérifications</Text>
-              </View>
-              <Icon name="chevron-forward" size={20} color={theme.colors.mutedForeground} />
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.settingItem}>
-              <View style={styles.settingLeft}>
-                <Icon name="document-text" size={20} color={theme.colors.mutedForeground} />
-                <Text style={styles.settingText}>Reçus et factures</Text>
-              </View>
-              <Icon name="chevron-forward" size={20} color={theme.colors.mutedForeground} />
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.settingItem}>
-              <View style={styles.settingLeft}>
-                <Icon name="help-circle" size={20} color={theme.colors.mutedForeground} />
-                <Text style={styles.settingText}>Aide et support</Text>
-              </View>
-              <Icon name="chevron-forward" size={20} color={theme.colors.mutedForeground} />
-            </TouchableOpacity>
-          </CardContent>
-        </Card>
       </ScrollView>
     </SafeAreaView>
   );
@@ -267,6 +309,25 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.lg,
     fontWeight: theme.fontWeight.medium,
     color: theme.colors.foreground,
+    flex: 1,
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  refreshText: {
+    color: theme.colors.primary,
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.medium,
+  },
+  refreshTextDisabled: {
+    color: theme.colors.mutedForeground,
+  },
+  lastUpdatedText: {
+    marginTop: theme.spacing.xs,
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
   },
   scrollView: {
     flex: 1,
@@ -342,68 +403,17 @@ const styles = StyleSheet.create({
     fontWeight: theme.fontWeight.bold,
     color: theme.colors.foreground,
   },
-  addButton: {
+  sectionActions: {
+    alignItems: 'flex-end',
+  },
+  errorText: {
+    color: '#b91c1c',
     fontSize: theme.fontSize.sm,
-    color: theme.colors.primary,
-    fontWeight: theme.fontWeight.medium,
   },
   viewAllButton: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.primary,
     fontWeight: theme.fontWeight.medium,
-  },
-  paymentCard: {
-    marginBottom: theme.spacing.md,
-  },
-  defaultCard: {
-    borderColor: theme.colors.primary,
-  },
-  paymentContent: {
-    padding: theme.spacing.lg,
-  },
-  paymentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  cardInfo: {
-    flex: 1,
-  },
-  cardBrand: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    marginBottom: theme.spacing.sm,
-  },
-  brandText: {
-    fontSize: theme.fontSize.md,
-    fontWeight: theme.fontWeight.medium,
-    color: theme.colors.foreground,
-  },
-  cardNumber: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: theme.fontWeight.medium,
-    color: theme.colors.foreground,
-    marginBottom: theme.spacing.xs,
-  },
-  cardExpiry: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.mutedForeground,
-  },
-  cardActions: {
-    alignItems: 'flex-end',
-    gap: theme.spacing.sm,
-  },
-  defaultBadge: {
-    backgroundColor: theme.colors.primary + '10',
-    borderColor: theme.colors.primary,
-  },
-  defaultText: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.primary,
-  },
-  moreButton: {
-    padding: theme.spacing.xs,
   },
   transactionCard: {
     marginBottom: theme.spacing.md,
@@ -456,9 +466,6 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: theme.fontSize.xs,
   },
-  completedText: {
-    color: '#22c55e',
-  },
   settingsCard: {
     margin: theme.spacing.lg,
     marginBottom: 80, // Reduced space for bottom nav
@@ -482,5 +489,31 @@ const styles = StyleSheet.create({
   settingText: {
     fontSize: theme.fontSize.md,
     color: theme.colors.foreground,
+  },
+  loadingState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: theme.spacing.xl,
+    gap: theme.spacing.sm,
+  },
+  loadingText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: theme.spacing.xl,
+    gap: theme.spacing.sm,
+  },
+  emptyTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: theme.fontWeight.medium,
+    color: theme.colors.foreground,
+  },
+  emptySubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
+    textAlign: 'center',
   },
 });

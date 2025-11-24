@@ -194,6 +194,11 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
 
   // Handle subscription cancellation
   const handleCancelSubscription = async () => {
+    if (!activeSubscriptionId) {
+      Alert.alert('Erreur', 'Aucun abonnement actif trouvé.');
+      return;
+    }
+
     Alert.alert(
       'Annuler l\'abonnement',
       'Voulez-vous vraiment annuler votre abonnement ? Vous garderez l\'accès jusqu\'à la fin de la période de facturation.',
@@ -204,9 +209,13 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
           style: 'destructive',
           onPress: async () => {
             try {
-              await cancelSubscription();
+              console.log('Cancelling subscription:', activeSubscriptionId);
+              await cancelSubscription(activeSubscriptionId);
               Alert.alert('Succès', 'Votre abonnement sera annulé à la fin de la période de facturation.');
+              // Reload subscription data after cancellation
+              // The usePrices hook should automatically refresh
             } catch (error: any) {
+              console.error('Cancel subscription error:', error);
               Alert.alert('Erreur', error.message || 'Impossible d\'annuler l\'abonnement.');
             }
           }

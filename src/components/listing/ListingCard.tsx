@@ -16,6 +16,7 @@ interface ListingCardProps {
   description: string;
   imageUrl: string;
   tags: string[];
+  careType?: string;
   isLiked?: boolean;
   rating?: number;
   reviewCount?: number;
@@ -33,6 +34,7 @@ export function ListingCard({
   description,
   imageUrl,
   tags,
+  careType,
   isLiked = false,
   rating,
   reviewCount,
@@ -47,9 +49,14 @@ export function ListingCard({
           style={styles.image}
         />
         <View style={styles.tagsContainer}>
-          {tags.slice(0, 2).map((tag, index) => (
-            <Badge key={index} variant="secondary" style={styles.tag}>
-              <Text style={styles.tagText}>{tag}</Text>
+          {careType && (
+            <Badge key="caretype" variant="secondary" style={styles.tag} textStyle={styles.tagText}>
+              {careType}
+            </Badge>
+          )}
+          {tags.filter(tag => tag !== careType).slice(0, careType ? 1 : 2).map((tag, index) => (
+            <Badge key={index} variant="secondary" style={styles.tag} textStyle={styles.tagText}>
+              {tag}
             </Badge>
           ))}
         </View>

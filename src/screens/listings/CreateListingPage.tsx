@@ -22,14 +22,15 @@ import { AnnouncementPayload } from '../../types/api';
 interface CreateListingPageProps {
   onBack: () => void;
   listingId?: string;
+  showBackButton?: boolean;
 }
 
-export function CreateListingPage({ onBack, listingId }: CreateListingPageProps) {
+export function CreateListingPage({ onBack, listingId, showBackButton = true }: CreateListingPageProps) {
   const { user } = useAuth();
   const { createAnnouncement, updateAnnouncement, getAnnouncementById } = useAnnouncementsApi();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [originalStatus, setOriginalStatus] = useState<string | undefined>(undefined);
+  const [originalStatus, setOriginalStatus] = useState<AnnouncementPayload['status'] | undefined>(undefined);
   
   const [formData, setFormData] = useState({
     title: "",
@@ -319,7 +320,7 @@ export function CreateListingPage({ onBack, listingId }: CreateListingPageProps)
         <PageHeader 
           title={listingId ? "Modifier l'annonce" : "Créer une annonce"}
           icon={listingId ? "create" : "add"}
-          showBackButton={true}
+          showBackButton={showBackButton}
           onBack={onBack}
         />
         <View style={styles.loadingContainer}>
@@ -335,7 +336,7 @@ export function CreateListingPage({ onBack, listingId }: CreateListingPageProps)
       <PageHeader 
         title={listingId ? "Modifier l'annonce" : "Créer une annonce"}
         icon={listingId ? "create" : "add"}
-        showBackButton={true}
+        showBackButton={showBackButton}
         onBack={onBack}
       />
 

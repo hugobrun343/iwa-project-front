@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, Dimensions, ActivityIndicator, Modal, TouchableOpacity } from 'react-native';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -54,6 +54,7 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
   const [isCreatingMessage, setIsCreatingMessage] = useState(false);
   const [pendingMessageData, setPendingMessageData] = useState<{ announcementId: number; ownerUsername: string } | null>(null);
   const [ownerUsername, setOwnerUsername] = useState<string | null>(null);
+  const lastFetchKeyRef = useRef<string | null>(null);
 
   const { getAnnouncementById } = useAnnouncementsApi();
   const { getUserByUsername } = useUserApi();
@@ -69,6 +70,12 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
 
   // Fetch full announcement details and owner information
   useEffect(() => {
+    const fetchKey = `${listing.id}-${isAuthenticated ? user?.username ?? 'auth-user' : 'guest'}`;
+    if (lastFetchKeyRef.current === fetchKey) {
+      return;
+    }
+    lastFetchKeyRef.current = fetchKey;
+
     // Reset application state when listing changes
     setHasApplication(false);
     setApplicationStatus(null);
@@ -185,7 +192,7 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
     };
 
     fetchListingDetails();
-  }, [listing.id, getAnnouncementById, getUserByUsername, getAverageRating, getRatingsReceived, listApplications, isAuthenticated, user?.username, findDiscussion, createMessage]);
+  }, [listing.id, isAuthenticated, user?.username, getAnnouncementById, getUserByUsername, getAverageRating, getRatingsReceived, listApplications]);
 
   const getDisplayName = (profile?: PublicUserDto, fallback?: string) => {
     if (!profile) {
@@ -577,18 +584,6 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
                         )}
                       </View>
                     </View>
-                  </View>
-                  
-                  {/* Contact buttons */}
-                  <View style={styles.contactButtons}>
-                    <Button 
-                      variant="outline" 
-                      style={styles.contactButton}
-                      onPress={handleMessage}
-                    >
-                      <Icon name="MessageCircle" size={16} color={theme.colors.foreground} />
-                      <Text style={styles.contactButtonText}>Contacter</Text>
-                    </Button>
                   </View>
                 </>
               )}

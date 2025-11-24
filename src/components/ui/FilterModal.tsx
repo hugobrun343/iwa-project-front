@@ -104,17 +104,17 @@ export function FilterModal({
               variant="outline" 
               onPress={handleReset}
               style={styles.resetButton}
+              textStyle={styles.resetButtonText}
             >
-              <Text style={styles.resetButtonText}>Réinitialiser</Text>
+              Réinitialiser
             </Button>
             <Button 
               variant="default" 
               onPress={handleApply}
               style={styles.applyButton}
+              textStyle={styles.applyButtonText}
             >
-              <Text style={styles.applyButtonText}>
-                Appliquer{selectedFilters.length > 0 ? ` (${selectedFilters.length})` : ''}
-              </Text>
+              Appliquer{selectedFilters.length > 0 ? ` (${selectedFilters.length})` : ''}
             </Button>
           </View>
         </View>

@@ -54,25 +54,6 @@ export function Filters({
           )}
         </TouchableOpacity>
         
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterTags}>
-          {filters.map((filter) => (
-            <TouchableOpacity
-              key={filter.value}
-              style={[
-                styles.filterTag,
-                activeFilters.includes(filter.value) && styles.filterTagActive
-              ]}
-              onPress={() => toggleFilter(filter.value)}
-            >
-              <Text style={[
-                styles.filterTagText,
-                activeFilters.includes(filter.value) && styles.filterTagTextActive
-              ]}>
-                {filter.label}{filter.count !== undefined ? ` (${filter.count})` : ''}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
       </View>
 
       <FilterModal

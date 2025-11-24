@@ -49,6 +49,11 @@ export interface LabelDto {
   label: string;
 }
 
+export interface CareTypeDto {
+  id: number;
+  label: string;
+}
+
 export interface ImageDto {
   id?: number;
   imageUrl: string;
@@ -77,6 +82,7 @@ export interface AnnouncementResponseDto extends Omit<AnnouncementPayload, 'owne
   ownerUsername?: string;
   createdAt?: string;
   updatedAt?: string;
+  careType?: CareTypeDto;
 }
 
 export type AnnouncementStatus = 'PUBLISHED' | 'IN_PROGRESS' | 'COMPLETED' | 'PENDING' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED';

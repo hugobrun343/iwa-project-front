@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { isTokenExpiredOrExpiringSoon, isTokenExpired } from '../utils/tokenUtils';
 
 export type QueryParamValue =
   | string
@@ -130,6 +131,45 @@ export const createApiClient = (
     };
 
     let token = withAuth ? getAccessToken() : null;
+    
+    // Check if token is expired or expiring soon before making the request
+    if (withAuth && token && onTokenRefresh) {
+      const isActuallyExpired = isTokenExpired(token);
+      const isExpiringSoon = isTokenExpiredOrExpiringSoon(token, 30);
+      
+      if (isActuallyExpired || isExpiringSoon) {
+        console.log(isActuallyExpired 
+          ? '🚨 Token expired, refreshing before request...' 
+          : '⚠️ Token expiring soon, refreshing before request...');
+        try {
+          // Wait for any ongoing refresh to complete
+          if (isRefreshing && refreshPromise) {
+            await refreshPromise;
+          } else if (!isRefreshing) {
+            // Start a new refresh
+            isRefreshing = true;
+            refreshPromise = onTokenRefresh()
+              .then(() => {
+                isRefreshing = false;
+                refreshPromise = null;
+              })
+              .catch((error) => {
+                isRefreshing = false;
+                refreshPromise = null;
+                throw error;
+              });
+            
+            await refreshPromise;
+          }
+          // Get the refreshed token
+          token = getAccessToken();
+        } catch (error) {
+          console.error('Pre-request token refresh failed:', error);
+          // Continue with original token, let the request fail and handle 401 below
+        }
+      }
+    }
+    
     let response = await makeRequest(token);
 
     // If we get a 401 and have auth enabled, try to refresh the token
@@ -162,11 +202,40 @@ export const createApiClient = (
     const parsed = await parseResponse(response);
 
     if (!response.ok) {
-      const message =
-        (parsed && typeof parsed === 'object' && 'message' in parsed && parsed.message) ||
-        response.statusText ||
-        'Unknown API error';
-      throw new ApiError(message as string, response.status, parsed);
+      // Extract error message from various possible formats
+      let message = response.statusText || 'Unknown API error';
+      
+      if (parsed && typeof parsed === 'object') {
+        // Try different common error message fields
+        const errorFields = ['message', 'error', 'error_description', 'detail', 'errorMessage', 'msg'];
+        for (const field of errorFields) {
+          if (field in parsed && parsed[field]) {
+            message = String(parsed[field]);
+            break;
+          }
+        }
+        
+        // For 429 (rate limiting), provide a more helpful message
+        if (response.status === 429) {
+          const retryAfter = response.headers.get('Retry-After');
+          if (retryAfter) {
+            message = `Too many requests. Please try again in ${retryAfter} seconds.`;
+          } else {
+            message = message || 'Too many requests. Please try again later.';
+          }
+        }
+      }
+      
+      // Log error details for debugging
+      if (response.status >= 500) {
+        console.error(`❌ Server error (${response.status}):`, message, parsed);
+      } else if (response.status === 429) {
+        console.warn(`⚠️ Rate limit exceeded (429):`, message);
+      } else if (response.status >= 400) {
+        console.warn(`⚠️ Client error (${response.status}):`, message);
+      }
+      
+      throw new ApiError(message, response.status, parsed);
     }
 
     return parsed as TResponse;

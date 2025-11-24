@@ -26,7 +26,7 @@ export interface AuthContextType {
   simulateLogin?: () => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
-  refreshToken: () => Promise<void>;
+  refreshToken: (force?: boolean) => Promise<void>;
   updateUserProfile: (updates: Partial<User>) => Promise<void>;
   updateUserAttribute: (attribute: string, value: any) => Promise<boolean>;
   markProfileAsComplete: () => void;

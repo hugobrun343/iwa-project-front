@@ -19,6 +19,7 @@ interface Listing {
   description: string;
   imageUrl: string;
   tags: string[];
+  careType?: string;
   rating: number;
   reviewCount: number;
   isLiked?: boolean;

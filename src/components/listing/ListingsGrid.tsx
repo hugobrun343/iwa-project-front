@@ -13,6 +13,7 @@ interface Listing {
   description: string;
   imageUrl: string;
   tags: string[];
+  careType?: string;
   isLiked?: boolean;
   rating?: number;
   reviewCount?: number;

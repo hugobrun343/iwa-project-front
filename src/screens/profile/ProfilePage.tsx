@@ -443,10 +443,10 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
               <View style={styles.nameRow}>
                 <Text style={styles.profileName}>{displayName}</Text>
                 {hasActiveSubscription && (
-                  <Badge variant="secondary" style={styles.premiumBadge}>
+                  <View style={styles.premiumBadge}>
                     <Icon name="Star" size={12} color={theme.colors.primary} />
                     <Text style={styles.premiumBadgeText}>Premium</Text>
-                  </Badge>
+                  </View>
                 )}
               </View>
               {displayUsername ? <Text style={styles.profileUsername}>@{displayUsername}</Text> : null}
@@ -460,10 +460,10 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                   <Text style={styles.reviewCount}>({userStats.reviewCount} avis)</Text>
                 </View>
                 {user?.isVerified && (
-                  <Badge variant="secondary" style={styles.verifiedBadge}>
+                  <View style={styles.verifiedBadge}>
                     <Icon name="ShieldCheckmark" size={12} color={theme.colors.secondaryForeground} />
                     <Text style={styles.verifiedText}>Vérifiée</Text>
-                  </Badge>
+                  </View>
                 )}
               </View>
             </View>
@@ -878,7 +878,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: 2,
     backgroundColor: theme.colors.primary + '10',
+    borderWidth: 1,
     borderColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.full,
   },
   premiumBadgeText: {
     fontSize: theme.fontSize.xs,
@@ -914,6 +916,8 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: 2,
+    backgroundColor: theme.colors.secondary,
+    borderRadius: theme.borderRadius.full,
   },
   verifiedText: {
     fontSize: theme.fontSize.xs,

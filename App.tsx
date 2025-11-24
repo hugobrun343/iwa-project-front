@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
@@ -45,28 +45,47 @@ function MainApp() {
   const [filteredListings, setFilteredListings] = useState([]);
   const [navigationStack, setNavigationStack] = useState(["home"]); // Stack pour navigation hiérarchique
   const [isLoadingListings, setIsLoadingListings] = useState(true);
+  const announcementsFetchInFlightRef = useRef(false);
+  const lastAnnouncementsFetchRef = useRef(0);
+  const lastAnnouncementsTokenRef = useRef<string | null>(null);
 
   const { listAnnouncements } = useAnnouncementsApi();
   const { getFavorites, checkFavorite, addFavorite, removeFavorite } = useFavoritesApi();
 
   // Load announcements on mount
   React.useEffect(() => {
+    if (!isAuthenticated || !accessToken) return;
+
+    const now = Date.now();
+    const sameToken = lastAnnouncementsTokenRef.current === accessToken;
+    const withinCooldown = sameToken && now - lastAnnouncementsFetchRef.current < 60000;
+
+    if (announcementsFetchInFlightRef.current || withinCooldown) {
+      return;
+    }
+
+    let cancelled = false;
+    announcementsFetchInFlightRef.current = true;
+    lastAnnouncementsTokenRef.current = accessToken;
+
     const loadAnnouncements = async () => {
-      if (!isAuthenticated || !accessToken) return;
-      
       try {
         setIsLoadingListings(true);
         const announcements = await listAnnouncements({ status: 'PUBLISHED' });
-        
-        if (announcements) {
-          // Transform API data to app format
-          const formattedListings = await Promise.all(announcements.map(async (ann) => {
+
+        if (!announcements || cancelled) {
+          return;
+        }
+
+        const formattedListings = await Promise.all(
+          announcements.map(async (ann) => {
             let isFavorite = false;
             if (user?.username) {
               const favCheck = await checkFavorite(ann.id);
               isFavorite = favCheck ? favCheck.isFavorite : false;
             }
-            
+
+            const careType = ann.careType?.label ?? ann.careTypeLabel ?? '';
             return {
               id: String(ann.id),
               title: ann.title,
@@ -77,26 +96,42 @@ function MainApp() {
               description: ann.description,
               imageUrl: ann.publicImages?.[0]?.imageUrl || "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba",
               publicImages: ann.publicImages?.map(img => img.imageUrl) || [],
-              tags: ann.careTypeLabel ? [ann.careTypeLabel] : [],
+              tags: careType ? [careType] : [],
+              careType: careType,
               isLiked: isFavorite,
               rating: 4.5,
               reviewCount: 0,
               ownerUsername: ann.ownerUsername || '',
             };
-          }));
-          
-          setListings(formattedListings);
-          setFilteredListings(formattedListings);
+          })
+        );
+
+        if (cancelled) {
+          return;
         }
+
+        setListings(formattedListings);
+        setFilteredListings(formattedListings);
       } catch (error) {
-        console.error('Error loading announcements:', error);
+        if (!cancelled) {
+          console.error('Error loading announcements:', error);
+        }
       } finally {
-        setIsLoadingListings(false);
+        if (!cancelled) {
+          announcementsFetchInFlightRef.current = false;
+          lastAnnouncementsFetchRef.current = Date.now();
+          setIsLoadingListings(false);
+        }
       }
     };
 
     loadAnnouncements();
-  }, [isAuthenticated, accessToken, listAnnouncements, user?.username]);
+
+    return () => {
+      cancelled = true;
+      announcementsFetchInFlightRef.current = false;
+    };
+  }, [isAuthenticated, accessToken, listAnnouncements, user?.username, checkFavorite]);
 
   // Show loading screen while checking authentication
   if (isLoading) {
@@ -178,7 +213,7 @@ function MainApp() {
     } else {
       const filtered = listings.filter(listing => 
         filters.some(filter => 
-          listing.tags.some(tag => tag.toLowerCase().includes(filter.toLowerCase()))
+          listing.careType && listing.careType.toLowerCase() === filter.toLowerCase()
         )
       );
       setFilteredListings(filtered);
@@ -215,13 +250,20 @@ function MainApp() {
     setSelectedDiscussionId(undefined);
   };
 
+  const handleBackToSearch = () => {
+    setActiveTab("home");
+    setCurrentPage("home");
+    setSelectedListing(null);
+    setSelectedDiscussionId(undefined);
+  };
+
   const renderCurrentPage = () => {
     switch (currentPage) {
       case "listing-detail":
         return selectedListing ? (
           <ListingDetailPage
             listing={selectedListing}
-            onBack={handleBack}
+            onBack={handleBackToSearch}
             onMessage={(discussionId) => {
               setSelectedDiscussionId(discussionId);
               handleNavigate("messages");
@@ -239,7 +281,7 @@ function MainApp() {
       case "favorites":
         return (
           <FavoritesPage
-            onBack={handleBack}
+            onBack={handleBackToSearch}
             allListings={listings}
             onLikeToggle={toggleLike}
             onListingClick={(listing) => handleNavigate("listing-detail", listing)}
@@ -249,7 +291,6 @@ function MainApp() {
       case "messages":
         return (
           <MessagesPage
-            onBack={handleBack}
             initialDiscussionId={selectedDiscussionId}
             onListingClick={(listing) => handleNavigate("listing-detail", listing)}
           />
@@ -260,9 +301,9 @@ function MainApp() {
           <CreateListingPage
             onBack={() => {
               setEditingListingId(null);
-              handleBack();
             }}
             listingId={editingListingId || undefined}
+            showBackButton={Boolean(editingListingId)}
           />
         );
       
