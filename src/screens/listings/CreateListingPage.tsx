@@ -18,6 +18,7 @@ import { theme } from '../../styles/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAnnouncementsApi } from '../../hooks/api/useAnnouncementsApi';
 import { AnnouncementPayload } from '../../types/api';
+import { buildDataUri, mapUrisToImagePayload, normalizeImageList } from '../../utils/imageUtils';
 
 interface CreateListingPageProps {
   onBack: () => void;
@@ -104,8 +105,8 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
             frequency: announcement.visitFrequency || "",
             description: announcement.description || "",
             instructions: announcement.specificInstructions || "",
-            photos: announcement.publicImages?.map(img => img.imageUrl) || [],
-            privatePhotos: announcement.specificImages?.map(img => img.imageUrl) || [],
+            photos: normalizeImageList(announcement.publicImages),
+            privatePhotos: normalizeImageList(announcement.specificImages),
             // Map care type
             homeCare: announcement.careTypeLabel === "Home Care",
             medicalCare: announcement.careTypeLabel === "Medical Care",
@@ -158,10 +159,24 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
+        base64: true,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const imageUri = result.assets[0].uri;
+        const asset = result.assets[0];
+
+        if (!asset.base64) {
+          Alert.alert('Erreur', 'Impossible de traiter cette image. Veuillez réessayer.');
+          return;
+        }
+
+        const imageUri = buildDataUri(asset.base64, asset.mimeType);
+
+        if (!imageUri) {
+          Alert.alert('Erreur', 'Format de fichier non supporté.');
+          return;
+        }
+
         setFormData(prev => ({
           ...prev,
           photos: [...prev.photos, imageUri]
@@ -190,10 +205,24 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
+        base64: true,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const imageUri = result.assets[0].uri;
+        const asset = result.assets[0];
+
+        if (!asset.base64) {
+          Alert.alert('Erreur', 'Impossible de traiter cette image. Veuillez réessayer.');
+          return;
+        }
+
+        const imageUri = buildDataUri(asset.base64, asset.mimeType);
+
+        if (!imageUri) {
+          Alert.alert('Erreur', 'Format de fichier non supporté.');
+          return;
+        }
+
         setFormData(prev => ({
           ...prev,
           privatePhotos: [...prev.privatePhotos, imageUri]
@@ -253,13 +282,8 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
       };
 
       // Convert photo URLs to ImageDto format
-      const publicImages = formData.photos.length > 0 
-        ? formData.photos.map(imageUrl => ({ imageUrl }))
-        : undefined;
-      
-      const specificImages = formData.privatePhotos.length > 0
-        ? formData.privatePhotos.map(imageUrl => ({ imageUrl }))
-        : undefined;
+      const publicImages = mapUrisToImagePayload(formData.photos);
+      const specificImages = mapUrisToImagePayload(formData.privatePhotos);
 
       const startDate = toIsoDate(formData.startDate);
       if (!startDate) {

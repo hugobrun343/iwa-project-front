@@ -17,7 +17,7 @@ interface Listing {
   price: number;
   period: string;
   description: string;
-  imageUrl: string;
+  imageUri?: string | null;
   tags: string[];
   careType?: string;
   rating: number;

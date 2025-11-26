@@ -20,6 +20,7 @@ import { RatingDto, AnnouncementResponseDto, PrivateUserDto } from '../../types/
 import { useUserApi } from '../../hooks/api/useUserApi';
 import { usePrices, useSubscribe, useRegister, useUserSubscription } from '../../hooks/api/useStripeApi';
 import { PREMIUM_PRICE_ID, BACKEND_URL } from '../../config/config';
+import { normalizeImageValue } from '../../utils/imageUtils';
 
 type ActivityReview = RatingDto & { note?: number; commentaire?: string; dateAvis?: string };
 type AnnouncementWithApplications = AnnouncementResponseDto & { applicationCount: number };
@@ -205,6 +206,14 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
     rating: rating,
     reviewCount: reviewCount,
   };
+
+  const avatarUri = useMemo(
+    () =>
+      normalizeImageValue(profileDetails?.profilePhoto) ??
+      normalizeImageValue(user?.photo_profil) ??
+      undefined,
+    [profileDetails?.profilePhoto, user?.photo_profil],
+  );
 
   const loadAnnouncementsForModal = async () => {
     if (!isAuthenticated || !user?.username || !accessToken) return;
@@ -429,9 +438,9 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
 
           <View style={styles.profileInfo}>
             <View style={styles.avatar}>
-              {profileDetails?.profilePhoto || user?.photo_profil ? (
+              {avatarUri ? (
                 <ImageWithFallback
-                  source={{ uri: profileDetails?.profilePhoto ?? user?.photo_profil }}
+                  source={{ uri: avatarUri }}
                   style={styles.avatarImage}
                   fallbackIcon="User"
                 />

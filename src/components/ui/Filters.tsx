@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, ScrollView } from 'react-native';
-import { Button } from './Button';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, StyleSheet, Text, TouchableOpacity, GestureResponderEvent } from 'react-native';
 import { Icon } from './Icon';
 import { FilterModal } from './FilterModal';
 import { theme } from '../../styles/theme';
+import { DateRange } from '../../types/filters';
 
 interface FilterOption {
   value: string;
@@ -15,27 +15,93 @@ interface FiltersProps {
   filters: FilterOption[];
   onFilterChange?: (activeFilters: string[]) => void;
   initialFilters?: string[];
+  initialDateRange?: DateRange;
+  onDateRangeChange?: (range?: DateRange) => void;
 }
+
+type FilterSection = 'careType' | 'dates';
 
 export function Filters({ 
   filters, 
   onFilterChange,
-  initialFilters = []
+  initialFilters = [],
+  initialDateRange,
+  onDateRangeChange,
 }: FiltersProps) {
   const [activeFilters, setActiveFilters] = useState<string[]>(initialFilters);
   const [modalVisible, setModalVisible] = useState(false);
-  
-  const toggleFilter = (filter: string) => {
-    const newFilters = activeFilters.includes(filter) 
-      ? activeFilters.filter(f => f !== filter)
-      : [...activeFilters, filter];
+  const [focusedSection, setFocusedSection] = useState<FilterSection | null>(null);
+  const [dateRange, setDateRange] = useState<DateRange>(initialDateRange ?? {});
+
+  useEffect(() => {
+    const nextFilters = initialFilters ?? [];
+    setActiveFilters((prev) => {
+      if (prev.length === nextFilters.length && prev.every((value, index) => value === nextFilters[index])) {
+        return prev;
+      }
+      return nextFilters;
+    });
+  }, [initialFilters]);
+
+  useEffect(() => {
+    const nextRange = initialDateRange ?? {};
+    setDateRange((prev) => {
+      if (prev.start === nextRange.start && prev.end === nextRange.end) {
+        return prev;
+      }
+      return nextRange;
+    });
+  }, [initialDateRange?.start, initialDateRange?.end]);
+
+  const handleApplyFilters = (newFilters: string[], nextRange?: DateRange) => {
     setActiveFilters(newFilters);
     onFilterChange?.(newFilters);
+    const normalizedRange = nextRange ?? {};
+    setDateRange(normalizedRange);
+    onDateRangeChange?.(normalizedRange);
   };
 
-  const handleApplyFilters = (newFilters: string[]) => {
-    setActiveFilters(newFilters);
-    onFilterChange?.(newFilters);
+  const handleClearDateRange = () => {
+    const emptyRange: DateRange = {};
+    setDateRange(emptyRange);
+    onDateRangeChange?.(emptyRange);
+  };
+
+  const openModal = (section?: FilterSection) => {
+    setFocusedSection(section ?? null);
+    setModalVisible(true);
+  };
+
+  const formatDateForDisplay = (value?: string) => {
+    if (!value) {
+      return '';
+    }
+    const [year, month, day] = value.split('-');
+    if (!year || !month || !day) {
+      return value;
+    }
+    return `${day}/${month}/${year}`;
+  };
+
+  const dateSummary = useMemo(() => {
+    if (dateRange.start && dateRange.end) {
+      return `${formatDateForDisplay(dateRange.start)} - ${formatDateForDisplay(dateRange.end)}`;
+    }
+    if (dateRange.start) {
+      return `À partir du ${formatDateForDisplay(dateRange.start)}`;
+    }
+    if (dateRange.end) {
+      return `Jusqu’au ${formatDateForDisplay(dateRange.end)}`;
+    }
+    return null;
+  }, [dateRange]);
+
+  const dateActive = Boolean(dateRange.start || dateRange.end);
+  const activeBadgeCount = activeFilters.length + (dateActive ? 1 : 0);
+
+  const handleClearDateRangePress = (event?: GestureResponderEvent) => {
+    event?.stopPropagation?.();
+    handleClearDateRange();
   };
 
   return (
@@ -43,25 +109,42 @@ export function Filters({
       <View style={styles.container}>
         <TouchableOpacity 
           style={styles.filtersButton}
-          onPress={() => setModalVisible(true)}
+          onPress={() => openModal()}
         >
           <Icon name="options-outline" size={16} color={theme.colors.foreground} />
           <Text style={styles.filtersText}>Filtres</Text>
-          {activeFilters.length > 0 && (
+          {activeBadgeCount > 0 && (
             <View style={styles.filtersBadge}>
-              <Text style={styles.filtersBadgeText}>{activeFilters.length}</Text>
+              <Text style={styles.filtersBadgeText}>{activeBadgeCount}</Text>
             </View>
           )}
         </TouchableOpacity>
-        
+
+        {dateSummary && (
+          <TouchableOpacity 
+            style={styles.dateTag}
+            onPress={() => openModal('dates')}
+          >
+            <Icon name="Calendar" size={14} color={theme.colors.primaryForeground} />
+            <Text style={styles.dateTagText}>{dateSummary}</Text>
+            <TouchableOpacity onPress={handleClearDateRangePress}>
+              <Icon name="Close" size={14} color={theme.colors.primaryForeground} />
+            </TouchableOpacity>
+          </TouchableOpacity>
+        )}
       </View>
 
       <FilterModal
         visible={modalVisible}
-        onClose={() => setModalVisible(false)}
+        onClose={() => {
+          setModalVisible(false);
+          setFocusedSection(null);
+        }}
         filters={filters}
         activeFilters={activeFilters}
         onApplyFilters={handleApplyFilters}
+        initialDateRange={dateRange}
+        initialSection={focusedSection ?? undefined}
       />
     </>
   );
@@ -72,6 +155,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
+    flexWrap: 'wrap',
   },
   filtersButton: {
     flexDirection: 'row',
@@ -95,34 +179,24 @@ const styles = StyleSheet.create({
     height: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: theme.spacing.xs,
   },
   filtersBadgeText: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.primaryForeground,
     fontWeight: theme.fontWeight.bold,
+    paddingHorizontal: 4,
   },
-  filterTags: {
-    flex: 1,
-  },
-  filterTag: {
-    marginRight: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.full,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.background,
-  },
-  filterTagActive: {
+  dateTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
     backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.full,
   },
-  filterTagText: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.foreground,
-  },
-  filterTagTextActive: {
+  dateTagText: {
+    fontSize: theme.fontSize.xs,
     color: theme.colors.primaryForeground,
   },
 });

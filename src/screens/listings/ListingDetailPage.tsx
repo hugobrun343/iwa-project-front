@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, StyleSheet, Dimensions, ActivityIndicator, Modal, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, ScrollView, StyleSheet, Dimensions, ActivityIndicator, Modal, TouchableOpacity, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Card, CardContent } from '../../components/ui/Card';
@@ -27,7 +27,7 @@ interface ListingDetailPageProps {
     period: string;
     frequency: string;
     description: string;
-    imageUrl: string;
+    imageUri?: string | null;
     publicImages?: string[];
     tags: string[];
     isLiked?: boolean;
@@ -55,6 +55,7 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
   const [pendingMessageData, setPendingMessageData] = useState<{ announcementId: number; ownerUsername: string } | null>(null);
   const [ownerUsername, setOwnerUsername] = useState<string | null>(null);
   const lastFetchKeyRef = useRef<string | null>(null);
+  const carouselRef = useRef<ScrollView | null>(null);
 
   const { getAnnouncementById } = useAnnouncementsApi();
   const { getUserByUsername } = useUserApi();
@@ -63,10 +64,39 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
   const { findDiscussion, createMessage } = useChatApi();
   const { user, isAuthenticated } = useAuth();
 
-  // Use public images from announcement, fallback to listing.imageUrl if no images
-  const images = listing.publicImages && listing.publicImages.length > 0 
+// Use public images from announcement, fallback to listing.imageUri if no images
+  const rawImages = listing.publicImages && listing.publicImages.length > 0 
     ? listing.publicImages 
-    : [listing.imageUrl];
+    : listing.imageUri
+      ? [listing.imageUri]
+      : [];
+  const images = rawImages.length > 0 ? rawImages : [''];
+
+  const handleCarouselScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset } = event.nativeEvent;
+    const index = Math.round(contentOffset.x / screenWidth);
+    setCurrentImageIndex(index);
+  }, []);
+
+  const scrollToImage = useCallback(
+    (index: number) => {
+      if (!carouselRef.current) {
+        return;
+      }
+      const clampedIndex = Math.max(0, Math.min(index, images.length - 1));
+      carouselRef.current.scrollTo({ x: clampedIndex * screenWidth, animated: true });
+      setCurrentImageIndex(clampedIndex);
+    },
+    [images.length],
+  );
+
+  const goToPreviousImage = useCallback(() => {
+    scrollToImage(currentImageIndex - 1);
+  }, [currentImageIndex, scrollToImage]);
+
+  const goToNextImage = useCallback(() => {
+    scrollToImage(currentImageIndex + 1);
+  }, [currentImageIndex, scrollToImage]);
 
   // Fetch full announcement details and owner information
   useEffect(() => {
@@ -438,10 +468,30 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Header with image */}
         <View style={styles.imageContainer}>
-          <ImageWithFallback
-            source={{ uri: images[currentImageIndex] }}
-            style={styles.image}
-          />
+          <ScrollView
+            ref={carouselRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={handleCarouselScroll}
+            onScrollEndDrag={handleCarouselScroll}
+            scrollEventThrottle={16}
+          >
+            {images.map((imageUri, index) => (
+              <View key={`${imageUri}-${index}`} style={styles.imageSlide}>
+                {imageUri ? (
+                  <ImageWithFallback
+                    source={{ uri: imageUri }}
+                    style={styles.image}
+                  />
+                ) : (
+                  <View style={[styles.image, styles.imageFallback]}>
+                    <Icon name="Image" size={48} color={theme.colors.mutedForeground} />
+                  </View>
+                )}
+              </View>
+            ))}
+          </ScrollView>
           
           {/* Header overlay */}
           <View style={styles.headerOverlay}>
@@ -476,6 +526,25 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
               </Button>
             </View>
           </View>
+
+          {images.length > 1 && (
+            <>
+              <TouchableOpacity
+                style={[styles.carouselNavButton, styles.carouselNavLeft]}
+                onPress={goToPreviousImage}
+                disabled={currentImageIndex === 0}
+              >
+                <Icon name="ChevronLeft" size={20} color={theme.colors.foreground} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.carouselNavButton, styles.carouselNavRight]}
+                onPress={goToNextImage}
+                disabled={currentImageIndex === images.length - 1}
+              >
+                <Icon name="ChevronRight" size={20} color={theme.colors.foreground} />
+              </TouchableOpacity>
+            </>
+          )}
 
           {/* Image indicators */}
           {images.length > 1 && (
@@ -677,20 +746,13 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
 
       {/* Fixed footer with actions */}
       <View style={styles.footer}>
-        <View style={styles.footerPricing}>
-          <View style={styles.footerPriceContainer}>
-            <Icon name="Euro" size={16} color={theme.colors.primary} />
-            <Text style={styles.footerPrice}>{listing.price}€</Text>
-            <Text style={styles.footerPeriod}>/jour</Text>
-          </View>
-          <Text style={styles.footerDates}>{listing.period}</Text>
-        </View>
         
         <Button 
           variant="outline" 
           size="sm"
           onPress={handleMessage}
           style={styles.messageButton}
+          disabled={isOwner()}
         >
           <Icon name="MessageCircle" size={16} color={theme.colors.foreground} />
           <Text style={styles.messageButtonText}>Message</Text>
@@ -772,9 +834,34 @@ const styles = StyleSheet.create({
     position: 'relative',
     height: 320,
   },
+  imageSlide: {
+    width: screenWidth,
+    height: '100%',
+  },
   image: {
     width: '100%',
     height: '100%',
+  },
+  imageFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.muted,
+  },
+  carouselNavButton: {
+    position: 'absolute',
+    top: '45%',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  carouselNavLeft: {
+    left: theme.spacing.md,
+  },
+  carouselNavRight: {
+    right: theme.spacing.md,
   },
   headerOverlay: {
     position: 'absolute',
@@ -1089,13 +1176,17 @@ const styles = StyleSheet.create({
   messageButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.sm,
+    gap: theme.spacing.xl,
+    minHeight: 40,
+    justifyContent: 'center',
   },
   messageButtonText: {
     fontSize: theme.fontSize.sm,
   },
   reserveButton: {
     paddingHorizontal: theme.spacing.xl,
+    minHeight: 40,
+    justifyContent: 'center',
   },
   modalOverlay: {
     flex: 1,

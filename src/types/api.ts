@@ -56,7 +56,9 @@ export interface CareTypeDto {
 
 export interface ImageDto {
   id?: number;
-  imageUrl: string;
+  imageUrl?: string;
+  imageBlob?: string;
+  contentType?: string;
 }
 
 export interface AnnouncementPayload {

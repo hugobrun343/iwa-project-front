@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch, ActivityIndicator, Alert, Platform } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
@@ -12,6 +13,7 @@ import { theme } from '../../styles/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { useUserApi } from '../../hooks/api/useUserApi';
 import { LabelDto } from '../../types/api';
+import { buildDataUri, extractBase64, normalizeImageValue } from '../../utils/imageUtils';
 
 interface EditProfilePageProps {
   onBack: () => void;
@@ -64,6 +66,67 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
     locationVisible: true
   });
 
+  const requestPhotoPermissions = async () => {
+    if (Platform.OS !== 'web') {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission requise',
+          'Nous avons besoin de votre permission pour accéder à vos photos.',
+          [{ text: 'OK' }],
+        );
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const handleChangePhoto = async () => {
+    const hasPermission = await requestPhotoPermissions();
+    if (!hasPermission) return;
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+
+        if (!asset.base64) {
+          Alert.alert('Erreur', 'Impossible de traiter cette image. Veuillez réessayer.');
+          return;
+        }
+
+        const imageUri = buildDataUri(asset.base64, asset.mimeType);
+
+        if (!imageUri) {
+          Alert.alert('Erreur', 'Format de fichier non supporté.');
+          return;
+        }
+
+        setProfile(prev => ({
+          ...prev,
+          avatar: imageUri,
+        }));
+      }
+    } catch (error) {
+      console.error('Error picking profile photo:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner la photo de profil');
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setProfile(prev => ({
+      ...prev,
+      avatar: '',
+    }));
+  };
+
   // Load user data on mount
   useEffect(() => {
     const loadProfile = async () => {
@@ -89,7 +152,7 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
             phone: profileData.phoneNumber || "",
             bio: profileData.description || "",
             location: profileData.location || "",
-            avatar: profileData.profilePhoto || "",
+            avatar: normalizeImageValue(profileData.profilePhoto) ?? "",
             languages: languagesData?.map(l => l.label) || [],
             skills: specialisationsData?.map(s => s.label) || [],
             availability: "", // Not available in API yet
@@ -169,8 +232,22 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
         phoneNumber: profile.phone,
         location: profile.location,
         description: profile.bio,
-        profilePhoto: profile.avatar,
       };
+
+      let serializedAvatar: string | null | undefined;
+      if (profile.avatar) {
+        if (profile.avatar.startsWith('http') || profile.avatar.startsWith('file:')) {
+          serializedAvatar = profile.avatar;
+        } else {
+          serializedAvatar = extractBase64(profile.avatar) ?? profile.avatar;
+        }
+      } else if (profile.avatar === '') {
+        serializedAvatar = null;
+      }
+
+      if (serializedAvatar !== undefined) {
+        profileUpdates.profilePhoto = serializedAvatar;
+      }
 
       // Serialize preferences as JSON string (backend expects String, not object)
       const preferencesObj = {
@@ -201,15 +278,22 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
 
       if (updatedProfile) {
         // Update AuthContext with new profile data
+        const normalizedUpdatedAvatar = normalizeImageValue(updatedProfile.profilePhoto) ?? '';
+
         await updateUserProfile({
           firstName: updatedProfile.firstName,
           lastName: updatedProfile.lastName,
           telephone: updatedProfile.phoneNumber,
           localisation: updatedProfile.location,
           description: updatedProfile.description,
-          photo_profil: updatedProfile.profilePhoto,
+          photo_profil: normalizedUpdatedAvatar,
           email: updatedProfile.email,
         });
+
+        setProfile(prev => ({
+          ...prev,
+          avatar: normalizedUpdatedAvatar,
+        }));
 
         Alert.alert('Succès', 'Profil mis à jour avec succès');
         onBack();
@@ -276,11 +360,22 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
                 </View>
               )}
               <View style={styles.photoActions}>
-                <Button variant="outline" size="sm" style={styles.photoButton}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  style={styles.photoButton}
+                  onPress={handleChangePhoto}
+                >
                   <Icon name="camera" size={16} color={theme.colors.primary} />
                   <Text style={styles.photoButtonText}>Changer la photo</Text>
                 </Button>
-                <Button variant="ghost" size="sm" style={styles.removeButton}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  style={styles.removeButton}
+                  onPress={handleRemovePhoto}
+                  disabled={!profile.avatar}
+                >
                   <Text style={styles.removeButtonText}>Supprimer</Text>
                 </Button>
               </View>

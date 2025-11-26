@@ -12,6 +12,7 @@ import { theme } from '../../styles/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAnnouncementsApi } from '../../hooks/api/useAnnouncementsApi';
 import { useApplicationsApi } from '../../hooks/api/useApplicationsApi';
+import { normalizeImageList } from '../../utils/imageUtils';
 
 interface MyListingsPageProps {
   onBack: () => void;
@@ -43,6 +44,8 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
           const listingsWithStats = await Promise.all(announcements.map(async (ann) => {
             const applications = await listApplications({ announcementId: ann.id });
             
+            const publicImageUris = normalizeImageList(ann.publicImages);
+
             return {
               id: String(ann.id),
               title: ann.title,
@@ -52,7 +55,7 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
               frequency: ann.visitFrequency || "À discuter",
               status: ann.status?.toLowerCase() || 'pending',
               applications: applications?.length || 0,
-              imageUrl: ann.publicImages?.[0]?.imageUrl || null,
+              imageUri: publicImageUris[0] || null,
               tags: ann.careTypeLabel ? [ann.careTypeLabel] : [],
               createdAt: ann.createdAt ? new Date(ann.createdAt).toLocaleDateString('fr-FR') : 'Récemment',
             };
@@ -93,9 +96,9 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
         <View style={styles.cardHeader}>
           <View style={styles.listingMainInfo}>
             <View style={styles.listingImageContainer}>
-              {listing.imageUrl ? (
+              {listing.imageUri ? (
                 <ImageWithFallback
-                  source={{ uri: listing.imageUrl }}
+                  source={{ uri: listing.imageUri }}
                   style={styles.listingImage}
                 />
               ) : (
@@ -322,7 +325,7 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
                       frequency: ann.visitFrequency || "À discuter",
                       status: ann.status?.toLowerCase() || 'pending',
                       applications: applications?.length || 0,
-                      imageUrl: ann.publicImages?.[0]?.imageUrl || null,
+                      imageUri: normalizeImageList(ann.publicImages)[0] || null,
                       tags: ann.careTypeLabel ? [ann.careTypeLabel] : [],
                       createdAt: ann.createdAt ? new Date(ann.createdAt).toLocaleDateString('fr-FR') : 'Récemment',
                     };

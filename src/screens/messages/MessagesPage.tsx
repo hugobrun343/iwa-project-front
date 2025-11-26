@@ -8,6 +8,7 @@ import { Icon } from '../../components/ui/Icon';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { theme } from '../../styles/theme';
 import { useChatApi } from '../../hooks/api/useChatApi';
+import { normalizeImageList } from '../../utils/imageUtils';
 import { useAuth } from '../../contexts/AuthContext';
 import { DiscussionDto, MessageDto, PublicUserDto, AnnouncementResponseDto } from '../../types/api';
 import { useUserApi } from '../../hooks/api/useUserApi';
@@ -487,6 +488,8 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
               const announcement = announcementDetails[selectedConversationItem.announcementId!];
               if (announcement && onListingClick) {
                 // Convert announcement to listing format
+                const publicImageUris = normalizeImageList(announcement.publicImages);
+
                 const listing = {
                   id: String(announcement.id),
                   title: announcement.title,
@@ -495,8 +498,8 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
                   period: announcement.startDate ? new Date(announcement.startDate).toLocaleDateString('fr-FR') : '',
                   frequency: announcement.visitFrequency || "À discuter",
                   description: announcement.description || '',
-                  imageUrl: announcement.publicImages?.[0]?.imageUrl || '',
-                  publicImages: announcement.publicImages?.map(img => img.imageUrl) || [],
+                  imageUri: publicImageUris[0] || null,
+                  publicImages: publicImageUris,
                   tags: announcement.careTypeLabel ? [announcement.careTypeLabel] : [],
                   isLiked: false,
                 };

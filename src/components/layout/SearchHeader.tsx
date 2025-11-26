@@ -5,6 +5,7 @@ import { SearchBar } from '../ui/SearchBar';
 import { Filters } from '../ui/Filters';
 import { theme } from '../../styles/theme';
 import { useAnnouncementsApi } from '../../hooks/api/useAnnouncementsApi';
+import { DateRange } from '../../types/filters';
 
 interface FilterOption {
   value: string;
@@ -22,9 +23,20 @@ const DEFAULT_FILTERS: FilterOption[] = [
 interface SearchHeaderProps {
   onSearch?: (query: string) => void;
   onFilterChange?: (filters: string[]) => void;
+  onDateRangeChange?: (range?: DateRange) => void;
+  initialFilters?: string[];
+  initialDateRange?: DateRange;
+  initialSearchQuery?: string;
 }
 
-export function SearchHeader({ onSearch, onFilterChange }: SearchHeaderProps) {
+export function SearchHeader({ 
+  onSearch, 
+  onFilterChange, 
+  onDateRangeChange, 
+  initialFilters, 
+  initialDateRange,
+  initialSearchQuery
+}: SearchHeaderProps) {
   const { listCareTypes } = useAnnouncementsApi();
   const [filterOptions, setFilterOptions] = useState<FilterOption[]>(DEFAULT_FILTERS);
 
@@ -72,14 +84,18 @@ export function SearchHeader({ onSearch, onFilterChange }: SearchHeaderProps) {
       <View style={styles.searchSection}>
         {/* Search Bar */}
         <SearchBar 
-          placeholder="Où cherchez-vous ?"
+          placeholder="Rechercher sur GuardHome"
           onSearch={onSearch}
+          initialValue={initialSearchQuery}
         />
 
         {/* Filters */}
         <Filters 
           filters={filterOptions}
           onFilterChange={onFilterChange}
+          onDateRangeChange={onDateRangeChange}
+          initialFilters={initialFilters}
+          initialDateRange={initialDateRange}
         />
       </View>
     </>

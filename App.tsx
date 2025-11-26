@@ -30,6 +30,73 @@ import { useTranslation } from 'react-i18next';
 import { useAnnouncementsApi } from './src/hooks/api/useAnnouncementsApi';
 import { useFavoritesApi } from './src/hooks/api/useFavoritesApi';
 import StripeProviderWrapper from './src/stripe/StripeProviderWrapper';
+import { DateRange } from './src/types/filters';
+import { normalizeImageList } from './src/utils/imageUtils';
+
+type ListingItem = {
+  title?: string;
+  location?: string;
+  description?: string;
+  careType?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+} & Record<string, any>;
+
+const filterListingsData = (
+  sourceListings: ListingItem[],
+  query: string,
+  careFilters: string[],
+  dateRange?: DateRange
+) => {
+  const normalizedQuery = (query ?? '').trim().toLowerCase();
+  const hasQuery = normalizedQuery.length > 0;
+  const normalizedCareFilters = (careFilters ?? []).map(filter => filter.toLowerCase());
+  const hasCareFilters = normalizedCareFilters.length > 0;
+  const requestStart = dateRange?.start ? new Date(`${dateRange.start}T00:00:00`) : undefined;
+  const requestEnd = dateRange?.end ? new Date(`${dateRange.end}T23:59:59`) : undefined;
+
+  return sourceListings.filter((listing) => {
+    const title = (listing.title ?? '').toLowerCase();
+    const location = (listing.location ?? '').toLowerCase();
+    const description = (listing.description ?? '').toLowerCase();
+
+    const matchesQuery = !hasQuery || title.includes(normalizedQuery) || location.includes(normalizedQuery) || description.includes(normalizedQuery);
+
+    const listingCare = listing.careType ? listing.careType.toLowerCase() : '';
+    const matchesCare = !hasCareFilters || (listingCare ? normalizedCareFilters.includes(listingCare) : false);
+
+    const matchesDates = (() => {
+      if (!requestStart && !requestEnd) {
+        return true;
+      }
+
+      const listingStart = listing.startDate ? new Date(listing.startDate) : undefined;
+      const listingEnd = listing.endDate ? new Date(listing.endDate) : listingStart;
+
+      if (!listingStart) {
+        return false;
+      }
+
+      const effectiveEnd = listingEnd ?? listingStart;
+
+      if (requestStart && requestEnd) {
+        return listingStart <= requestEnd && effectiveEnd >= requestStart;
+      }
+
+      if (requestStart) {
+        return effectiveEnd >= requestStart;
+      }
+
+      if (requestEnd) {
+        return listingStart <= requestEnd;
+      }
+
+      return true;
+    })();
+
+    return matchesQuery && matchesCare && matchesDates;
+  });
+};
 
 // Main App Component with Authentication
 function MainApp() {
@@ -43,11 +110,40 @@ function MainApp() {
   const [selectedDiscussionId, setSelectedDiscussionId] = useState<number | undefined>(undefined);
   const [listings, setListings] = useState([]);
   const [filteredListings, setFilteredListings] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeCareFilters, setActiveCareFilters] = useState<string[]>([]);
+  const [activeDateRange, setActiveDateRange] = useState<DateRange | undefined>(undefined);
   const [navigationStack, setNavigationStack] = useState(["home"]); // Stack pour navigation hiérarchique
   const [isLoadingListings, setIsLoadingListings] = useState(true);
   const announcementsFetchInFlightRef = useRef(false);
   const lastAnnouncementsFetchRef = useRef(0);
   const lastAnnouncementsTokenRef = useRef<string | null>(null);
+  const searchQueryRef = useRef('');
+  const careFiltersRef = useRef<string[]>([]);
+  const dateRangeRef = useRef<DateRange | undefined>(undefined);
+
+  const recomputeFilteredListings = React.useCallback(
+    ({
+      listings: sourceListings,
+      query,
+      careFilters,
+      dateRange,
+    }: {
+      listings?: ListingItem[];
+      query?: string;
+      careFilters?: string[];
+      dateRange?: DateRange;
+    } = {}) => {
+      const finalListings = sourceListings ?? listings;
+      const finalQuery = query ?? searchQueryRef.current;
+      const finalCareFilters = careFilters ?? careFiltersRef.current;
+      const finalDateRange = dateRange ?? dateRangeRef.current;
+      setFilteredListings(
+        filterListingsData(finalListings, finalQuery, finalCareFilters, finalDateRange)
+      );
+    },
+    [listings]
+  );
 
   const { listAnnouncements } = useAnnouncementsApi();
   const { getFavorites, checkFavorite, addFavorite, removeFavorite } = useFavoritesApi();
@@ -86,6 +182,9 @@ function MainApp() {
             }
 
             const careType = ann.careType?.label ?? ann.careTypeLabel ?? '';
+            const publicImageUris = normalizeImageList(ann.publicImages);
+            const fallbackImage = "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba";
+            const displayImages = publicImageUris.length > 0 ? publicImageUris : [fallbackImage];
             return {
               id: String(ann.id),
               title: ann.title,
@@ -94,14 +193,16 @@ function MainApp() {
               period: ann.startDate ? new Date(ann.startDate).toLocaleDateString('fr-FR') : '',
               frequency: ann.visitFrequency || "À discuter",
               description: ann.description,
-              imageUrl: ann.publicImages?.[0]?.imageUrl || "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba",
-              publicImages: ann.publicImages?.map(img => img.imageUrl) || [],
+              imageUri: displayImages[0],
+              publicImages: displayImages,
               tags: careType ? [careType] : [],
               careType: careType,
               isLiked: isFavorite,
               rating: 4.5,
               reviewCount: 0,
               ownerUsername: ann.ownerUsername || '',
+              startDate: ann.startDate || null,
+              endDate: ann.endDate || null,
             };
           })
         );
@@ -111,7 +212,7 @@ function MainApp() {
         }
 
         setListings(formattedListings);
-        setFilteredListings(formattedListings);
+        recomputeFilteredListings({ listings: formattedListings });
       } catch (error) {
         if (!cancelled) {
           console.error('Error loading announcements:', error);
@@ -131,7 +232,7 @@ function MainApp() {
       cancelled = true;
       announcementsFetchInFlightRef.current = false;
     };
-  }, [isAuthenticated, accessToken, listAnnouncements, user?.username, checkFavorite]);
+  }, [isAuthenticated, accessToken, listAnnouncements, user?.username, checkFavorite, recomputeFilteredListings]);
 
   // Show loading screen while checking authentication
   if (isLoading) {
@@ -192,32 +293,28 @@ function MainApp() {
           : l
       );
       setListings(updatedListings);
-      setFilteredListings(updatedListings);
+      recomputeFilteredListings({ listings: updatedListings });
     } catch (error) {
       console.error('Error toggling favorite:', error);
     }
   };
 
   const handleSearch = (query: string) => {
-    const filtered = listings.filter(listing => 
-      listing.title.toLowerCase().includes(query.toLowerCase()) ||
-      listing.location.toLowerCase().includes(query.toLowerCase()) ||
-      listing.description.toLowerCase().includes(query.toLowerCase())
-    );
-    setFilteredListings(filtered);
+    setSearchQuery(query);
+    searchQueryRef.current = query;
+    recomputeFilteredListings({ query });
   };
 
   const handleFilterChange = (filters: string[]) => {
-    if (filters.length === 0) {
-      setFilteredListings(listings);
-    } else {
-      const filtered = listings.filter(listing => 
-        filters.some(filter => 
-          listing.careType && listing.careType.toLowerCase() === filter.toLowerCase()
-        )
-      );
-      setFilteredListings(filtered);
-    }
+    setActiveCareFilters(filters);
+    careFiltersRef.current = filters;
+    recomputeFilteredListings({ careFilters: filters });
+  };
+
+  const handleDateRangeChange = (range?: DateRange) => {
+    setActiveDateRange(range);
+    dateRangeRef.current = range;
+    recomputeFilteredListings({ dateRange: range });
   };
 
   const handleNavigate = (page: string, data?: any) => {
@@ -378,6 +475,10 @@ function MainApp() {
             listings={filteredListings}
             onSearch={handleSearch}
             onFilterChange={handleFilterChange}
+            onDateRangeChange={handleDateRangeChange}
+            initialFilters={activeCareFilters}
+            initialDateRange={activeDateRange}
+            initialSearchQuery={searchQuery}
             onListingClick={(listing) => handleNavigate("listing-detail", listing)}
             onLikeToggle={toggleLike}
           />

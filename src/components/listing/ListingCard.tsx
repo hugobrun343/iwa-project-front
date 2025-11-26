@@ -14,7 +14,7 @@ interface ListingCardProps {
   period: string;
   frequency: string;
   description: string;
-  imageUrl: string;
+  imageUri?: string | null;
   tags: string[];
   careType?: string;
   isLiked?: boolean;
@@ -32,7 +32,7 @@ export function ListingCard({
   period,
   frequency,
   description,
-  imageUrl,
+  imageUri,
   tags,
   careType,
   isLiked = false,
@@ -44,10 +44,16 @@ export function ListingCard({
   return (
     <Card style={styles.card}>
       <View style={styles.imageContainer}>
-        <ImageWithFallback
-          source={{ uri: imageUrl }}
-          style={styles.image}
-        />
+        {imageUri ? (
+          <ImageWithFallback
+            source={{ uri: imageUri }}
+            style={styles.image}
+          />
+        ) : (
+          <View style={[styles.image, styles.imageFallback]}>
+            <Icon name="Image" size={32} color={theme.colors.mutedForeground} />
+          </View>
+        )}
         <View style={styles.tagsContainer}>
           {careType && (
             <Badge key="caretype" variant="secondary" style={styles.tag} textStyle={styles.tagText}>
@@ -132,6 +138,11 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
+  },
+  imageFallback: {
+    backgroundColor: theme.colors.muted,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tagsContainer: {
     position: 'absolute',
