@@ -57,12 +57,12 @@ export function ListingCard({
         <View style={styles.tagsContainer}>
           {careType && (
             <Badge key="caretype" variant="secondary" style={styles.tag} textStyle={styles.tagText}>
-              {careType}
+              {String(careType)}
             </Badge>
           )}
-          {tags.filter(tag => tag !== careType).slice(0, careType ? 1 : 2).map((tag, index) => (
+          {(tags || []).filter(tag => tag && tag !== careType).slice(0, careType ? 1 : 2).map((tag, index) => (
             <Badge key={index} variant="secondary" style={styles.tag} textStyle={styles.tagText}>
-              {tag}
+              {String(tag)}
             </Badge>
           ))}
         </View>
@@ -79,44 +79,44 @@ export function ListingCard({
       </View>
       
       <CardContent>
-        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.title}>{title || ''}</Text>
         
         <View style={styles.locationRow}>
           <Icon name="location" size={12} color={theme.colors.mutedForeground} />
-          <Text style={styles.locationText}>{location}</Text>
+          <Text style={styles.locationText}>{location || ''}</Text>
         </View>
         
         {ownerUsername && (
           <View style={styles.ownerRow}>
             <Icon name="User" size={12} color={theme.colors.mutedForeground} />
-            <Text style={styles.ownerText}>{ownerUsername}</Text>
+            <Text style={styles.ownerText}>{String(ownerUsername)}</Text>
           </View>
         )}
         
         <Text style={styles.description} numberOfLines={2}>
-          {description}
+          {description || ''}
         </Text>
         
         <View style={styles.detailsRow}>
           <View style={styles.detailItem}>
             <Icon name="calendar" size={14} color={theme.colors.mutedForeground} />
-            <Text style={styles.detailText}>{period}</Text>
+            <Text style={styles.detailText}>{period || ''}</Text>
           </View>
           <View style={styles.priceContainer}>
-            <Text style={styles.priceText}>{price}€/jour</Text>
+            <Text style={styles.priceText}>{String(price || 0)}€/jour</Text>
           </View>
         </View>
         
         <View style={styles.frequencyRow}>
           <Icon name="time" size={14} color={theme.colors.mutedForeground} />
-          <Text style={styles.detailText}>{frequency}</Text>
+          <Text style={styles.detailText}>{frequency || ''}</Text>
         </View>
         
-        {rating && reviewCount && (
+        {rating != null && reviewCount != null && (
           <View style={styles.ratingRow}>
             <Icon name="star" size={14} color="#fbbf24" />
-            <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
-            <Text style={styles.reviewText}>({reviewCount} avis)</Text>
+            <Text style={styles.ratingText}>{String(rating.toFixed(1))}</Text>
+            <Text style={styles.reviewText}>({String(reviewCount)} avis)</Text>
           </View>
         )}
       </CardContent>

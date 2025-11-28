@@ -3,6 +3,7 @@ import { View, StyleSheet, Text, Modal, TouchableOpacity, ScrollView } from 'rea
 import { Button } from './Button';
 import { Icon } from './Icon';
 import { DatePicker } from './DatePicker';
+import { Badge } from './Badge';
 import { theme } from '../../styles/theme';
 import { DateRange } from '../../types/filters';
 
@@ -110,16 +111,22 @@ export function FilterModal({
     return `${day}/${month}/${year}`;
   };
 
+  const selectedFilterLabels = useMemo(() => {
+    return selectedFilters.map(value => {
+      const filter = filters.find(f => f.value === value);
+      return filter ? filter.label : value;
+    });
+  }, [selectedFilters, filters]);
+
   const careTypeSummary = useMemo(() => {
     if (selectedFilters.length === 0) {
       return 'Tous les soins';
     }
     if (selectedFilters.length === 1) {
-      const match = filters.find((f) => f.value === selectedFilters[0]);
-      return match?.label ?? selectedFilters[0];
+      return selectedFilterLabels[0] || selectedFilters[0];
     }
     return `${selectedFilters.length} sélectionnés`;
-  }, [selectedFilters, filters]);
+  }, [selectedFilters, selectedFilterLabels]);
 
   const dateSummary = useMemo(() => {
     const hasStart = Boolean(dateRange.start);
@@ -160,7 +167,17 @@ export function FilterModal({
             >
               <View style={styles.summaryTextWrapper}>
                 <Text style={styles.summaryLabel}>CareType</Text>
-                <Text style={styles.summaryValue}>{careTypeSummary}</Text>
+                {selectedFilters.length > 0 ? (
+                  <View style={styles.badgeContainer}>
+                    {selectedFilterLabels.map((label, index) => (
+                      <Badge key={`${selectedFilters[index]}-${index}`} variant="default" style={styles.filterBadge}>
+                        {label}
+                      </Badge>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={styles.summaryValue}>{careTypeSummary}</Text>
+                )}
               </View>
               <Icon name="ChevronRight" size={16} color={theme.colors.mutedForeground} />
             </TouchableOpacity>
@@ -321,6 +338,17 @@ const styles = StyleSheet.create({
   summaryTextWrapper: {
     flex: 1,
     gap: 4,
+  },
+  badgeContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.xs,
+    marginTop: 4,
+    alignItems: 'flex-start',
+    minHeight: 24,
+  },
+  filterBadge: {
+    marginRight: 0,
   },
   summaryLabel: {
     fontSize: theme.fontSize.sm,

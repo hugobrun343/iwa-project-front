@@ -190,7 +190,7 @@ function MainApp() {
               title: ann.title,
               location: ann.location,
               price: ann.remuneration || 0,
-              period: ann.startDate ? new Date(ann.startDate).toLocaleDateString('fr-FR') : '',
+              period: ann.startDate && ann.endDate ? `${new Date(ann.startDate).toLocaleDateString('fr-FR')} - ${new Date(ann.endDate).toLocaleDateString('fr-FR')}` : '',
               frequency: ann.visitFrequency || "À discuter",
               description: ann.description,
               imageUri: displayImages[0],

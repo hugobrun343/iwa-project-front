@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, GestureResponderEvent } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity, GestureResponderEvent, ScrollView } from 'react-native';
 import { Icon } from './Icon';
+import { Badge } from './Badge';
 import { FilterModal } from './FilterModal';
 import { theme } from '../../styles/theme';
 import { DateRange } from '../../types/filters';
@@ -99,6 +100,13 @@ export function Filters({
   const dateActive = Boolean(dateRange.start || dateRange.end);
   const activeBadgeCount = activeFilters.length + (dateActive ? 1 : 0);
 
+  const selectedFilterLabels = useMemo(() => {
+    return activeFilters.map(value => {
+      const filter = filters.find(f => f.value === value);
+      return filter ? filter.label : value;
+    });
+  }, [activeFilters, filters]);
+
   const handleClearDateRangePress = (event?: GestureResponderEvent) => {
     event?.stopPropagation?.();
     handleClearDateRange();
@@ -120,17 +128,31 @@ export function Filters({
           )}
         </TouchableOpacity>
 
-        {dateSummary && (
-          <TouchableOpacity 
-            style={styles.dateTag}
-            onPress={() => openModal('dates')}
+        {(activeFilters.length > 0 || dateSummary) && (
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            style={styles.scrollContainer}
+            contentContainerStyle={styles.careTypeBadgesContainer}
           >
-            <Icon name="Calendar" size={14} color={theme.colors.primaryForeground} />
-            <Text style={styles.dateTagText}>{dateSummary}</Text>
-            <TouchableOpacity onPress={handleClearDateRangePress}>
-              <Icon name="Close" size={14} color={theme.colors.primaryForeground} />
-            </TouchableOpacity>
-          </TouchableOpacity>
+            {selectedFilterLabels.map((label, index) => (
+              <Badge key={`${activeFilters[index]}-${index}`} variant="default" style={styles.careTypeBadge}>
+                {label}
+              </Badge>
+            ))}
+            {dateSummary && (
+              <TouchableOpacity 
+                style={styles.dateTag}
+                onPress={() => openModal('dates')}
+              >
+                <Icon name="Calendar" size={14} color={theme.colors.primaryForeground} />
+                <Text style={styles.dateTagText}>{dateSummary}</Text>
+                <TouchableOpacity onPress={handleClearDateRangePress}>
+                  <Icon name="Close" size={14} color={theme.colors.primaryForeground} />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
         )}
       </View>
 
@@ -155,7 +177,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
-    flexWrap: 'wrap',
   },
   filtersButton: {
     flexDirection: 'row',
@@ -198,5 +219,18 @@ const styles = StyleSheet.create({
   dateTagText: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.primaryForeground,
+  },
+  scrollContainer: {
+    flex: 1,
+    maxHeight: 32,
+  },
+  careTypeBadgesContainer: {
+    flexDirection: 'row',
+    gap: theme.spacing.xs,
+    alignItems: 'center',
+    paddingRight: theme.spacing.sm,
+  },
+  careTypeBadge: {
+    marginRight: 0,
   },
 });

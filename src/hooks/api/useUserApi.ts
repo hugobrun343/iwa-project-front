@@ -8,6 +8,8 @@ import {
   ProfileCompleteResponse,
   PublicUserDto,
   UserExistsResponse,
+  UserLanguageDto,
+  UserSpecialisationDto,
 } from '../../types/api';
 
 interface UpdateLanguagesPayload {
@@ -75,7 +77,7 @@ export const useUserApi = () => {
   );
 
   const getMyLanguages = useCallback(
-    () => execute(() => request<LabelDto[]>('/api/users/me/languages')),
+    () => execute(() => request<UserLanguageDto[]>('/api/users/me/languages')),
     [execute, request],
   );
 
@@ -91,7 +93,7 @@ export const useUserApi = () => {
   );
 
   const getMySpecialisations = useCallback(
-    () => execute(() => request<LabelDto[]>('/api/users/me/specialisations')),
+    () => execute(() => request<UserSpecialisationDto[]>('/api/users/me/specialisations')),
     [execute, request],
   );
 

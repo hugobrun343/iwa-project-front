@@ -29,70 +29,96 @@ export function MyApplicationsPanel({ visible, onClose }: MyApplicationsPanelPro
   const { getUserByUsername } = useUserApi();
   const { user } = useAuth();
 
-  useEffect(() => {
-    if (visible && user?.username) {
-      loadMyApplications();
-    }
-  }, [visible, user?.username]);
-
   const loadMyApplications = async () => {
-    if (!user?.username) return;
+    if (!user?.username) {
+      console.warn('MyApplicationsPanel: user username is missing');
+      return;
+    }
 
     try {
       setIsLoading(true);
+      console.log('Loading applications for guardian:', user.username);
       const apps = await listApplications({ guardianUsername: user.username });
       
-      if (apps && apps.length > 0) {
-        // Enrich applications with announcement and owner info
-        const enrichedApps = await Promise.all(
-          apps.map(async (app) => {
-            try {
-              let announcement: AnnouncementResponseDto | undefined;
-              let owner: PublicUserDto | undefined;
+      console.log('Applications received:', apps);
+      console.log('Applications type:', typeof apps);
+      console.log('Applications is array:', Array.isArray(apps));
+      console.log('Applications length:', apps?.length);
 
-              // Fetch announcement details
-              if (app.announcementId) {
-                announcement = await getAnnouncementById(app.announcementId);
-                
-                // Fetch owner info if available
-                if (announcement?.ownerUsername) {
-                  try {
-                    owner = await getUserByUsername(announcement.ownerUsername);
-                  } catch (error) {
-                    console.error(`Error loading owner info for ${announcement.ownerUsername}:`, error);
-                  }
+      // Handle null/undefined or empty array
+      if (!apps) {
+        console.warn('Applications is null or undefined');
+        setApplications([]);
+        return;
+      }
+
+      if (apps.length === 0) {
+        console.log('No applications found');
+        setApplications([]);
+        return;
+      }
+
+      // Enrich applications with announcement and owner info
+      console.log('Enriching applications...');
+      const enrichedApps = await Promise.all(
+        apps.map(async (app) => {
+          try {
+            let announcement: AnnouncementResponseDto | undefined;
+            let owner: PublicUserDto | undefined;
+
+            // Fetch announcement details
+            if (app.announcementId) {
+              announcement = await getAnnouncementById(app.announcementId);
+              
+              // Fetch owner info if available
+              if (announcement?.ownerUsername) {
+                try {
+                  owner = await getUserByUsername(announcement.ownerUsername);
+                } catch (error) {
+                  console.error(`Error loading owner info for ${announcement.ownerUsername}:`, error);
                 }
               }
-
-              return {
-                ...app,
-                announcement,
-                owner,
-              };
-            } catch (error) {
-              console.error(`Error loading announcement info for ${app.announcementId}:`, error);
-              return app;
             }
-          })
-        );
-        
-        // Sort by creation date (newest first)
-        enrichedApps.sort((a, b) => {
-          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return dateB - dateA;
-        });
-        
-        setApplications(enrichedApps);
-      } else {
-        setApplications([]);
-      }
+
+            return {
+              ...app,
+              announcement,
+              owner,
+            };
+          } catch (error) {
+            console.error(`Error loading announcement info for ${app.announcementId}:`, error);
+            return app;
+          }
+        })
+      );
+      
+      // Sort by creation date (newest first)
+      enrichedApps.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      });
+      
+      console.log('Enriched applications:', enrichedApps);
+      console.log('Setting applications state with', enrichedApps.length, 'items');
+      setApplications(enrichedApps);
     } catch (error) {
       console.error('Error loading my applications:', error);
+      setApplications([]);
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (visible && user?.username) {
+      loadMyApplications();
+    } else if (!visible) {
+      // Reset applications when modal is closed
+      setApplications([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, user?.username]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -130,6 +156,13 @@ export function MyApplicationsPanel({ visible, onClose }: MyApplicationsPanelPro
   const sentApplications = applications.filter(app => app.status === 'SENT');
   const acceptedApplications = applications.filter(app => app.status === 'ACCEPTED');
   const refusedApplications = applications.filter(app => app.status === 'REFUSED');
+  
+  // Debug logs
+  console.log('MyApplicationsPanel - Total applications in state:', applications.length);
+  console.log('MyApplicationsPanel - Sent applications:', sentApplications.length);
+  console.log('MyApplicationsPanel - Accepted applications:', acceptedApplications.length);
+  console.log('MyApplicationsPanel - Refused applications:', refusedApplications.length);
+  console.log('MyApplicationsPanel - Applications statuses:', applications.map(app => ({ id: app.id, status: app.status })));
 
   return (
     <Modal
@@ -314,6 +347,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
     borderTopLeftRadius: theme.borderRadius.xl,
     borderTopRightRadius: theme.borderRadius.xl,
+    height: '85%',
     maxHeight: '90%',
     paddingBottom: 30,
   },

@@ -1,9 +1,11 @@
 export interface UserLanguageDto {
-  label: string;
+  language: string;
+  label?: string; // Keep for backward compatibility
 }
 
 export interface UserSpecialisationDto {
-  label: string;
+  specialisation: string;
+  label?: string; // Keep for backward compatibility
 }
 
 export interface PrivateUserDto {

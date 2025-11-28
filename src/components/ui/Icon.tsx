@@ -52,6 +52,8 @@ const iconMap = {
   'arrow-down': 'arrow-down',
   'arrow-up': 'arrow-up',
   'swap-horizontal': 'swap-horizontal',
+  'swap-vertical': 'swap-vertical-outline',
+  trash: 'trash-outline',
   eye: 'eye-outline',
   'ellipsis-vertical': 'ellipsis-vertical',
   star: 'star',

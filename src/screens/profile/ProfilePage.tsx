@@ -404,19 +404,6 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
       isLoading: isProcessingPayment || subscriptionLoading || registerLoading
     },
     {
-      icon: "Bell",
-      label: "Notifications",
-      description: "Gérer vos préférences",
-      hasSwitch: true,
-      enabled: true
-    },
-    {
-      icon: "ShieldCheckmark",
-      label: "Vérification d'identité",
-      description: user?.isVerified ? "Complétée" : "En attente de vérification",
-      badge: user?.isVerified ? "Vérifié" : "En attente"
-    },
-    {
       icon: "CreditCard",
       label: "Paiements",
       description: "Cartes et facturation",
@@ -591,18 +578,6 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
             <CardContent>
               <Text style={styles.sectionTitle}>Support</Text>
               <View style={styles.menuList}>
-                <View style={styles.menuItem}>
-                  <View style={styles.menuItemLeft}>
-                    <View style={styles.settingsIcon}>
-                      <Icon name="Settings" size={20} color={theme.colors.mutedForeground} />
-                    </View>
-                    <View style={styles.menuItemContent}>
-                      <Text style={styles.menuItemTitle}>Centre d'aide</Text>
-                      <Text style={styles.menuItemDescription}>FAQ et assistance</Text>
-                    </View>
-                  </View>
-                  <Icon name="ChevronRight" size={16} color={theme.colors.mutedForeground} />
-                </View>
                 
                 <TouchableOpacity 
                   style={styles.menuItem}
@@ -1093,6 +1068,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
     borderTopLeftRadius: theme.borderRadius.xl,
     borderTopRightRadius: theme.borderRadius.xl,
+    height: '85%',
     maxHeight: '90%',
     paddingBottom: 30,
   },

@@ -94,10 +94,10 @@ export function CompleteProfilePage({ onComplete }: CompleteProfilePageProps) {
               
               // Set selected languages and specialisations
               if (languagesData && languagesData.length > 0) {
-                setSelectedLanguages(languagesData.map(l => l.label));
+                setSelectedLanguages(languagesData.map(l => l.language || l.label || ''));
               }
               if (specialisationsData && specialisationsData.length > 0) {
-                setSelectedSpecialisations(specialisationsData.map(s => s.label));
+                setSelectedSpecialisations(specialisationsData.map(s => s.specialisation || s.label || ''));
               }
             } else {
               // Fallback to user data from auth context

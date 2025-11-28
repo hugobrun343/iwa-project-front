@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
@@ -13,6 +13,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useAnnouncementsApi } from '../../hooks/api/useAnnouncementsApi';
 import { useApplicationsApi } from '../../hooks/api/useApplicationsApi';
 import { normalizeImageList } from '../../utils/imageUtils';
+import { AnnouncementStatus } from '../../types/api';
 
 interface MyListingsPageProps {
   onBack: () => void;
@@ -26,9 +27,12 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<{ id: number; title: string } | null>(null);
   const [showApplicationsPanel, setShowApplicationsPanel] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [selectedListingForMenu, setSelectedListingForMenu] = useState<any>(null);
+  const [showStatusModal, setShowStatusModal] = useState(false);
   
   const { user, isAuthenticated, accessToken } = useAuth();
-  const { listAnnouncementsByOwner } = useAnnouncementsApi();
+  const { listAnnouncementsByOwner, deleteAnnouncement, updateAnnouncementStatus } = useAnnouncementsApi();
   const { listApplications } = useApplicationsApi();
 
   useEffect(() => {
@@ -63,7 +67,7 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
 
           // Group by status
           const grouped = {
-            active: listingsWithStats.filter(l => l.status === 'published'),
+            active: listingsWithStats.filter(l => l.status === 'published' || l.status === 'in_progress'),
             completed: listingsWithStats.filter(l => l.status === 'completed'),
           };
 
@@ -87,6 +91,153 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
         return <Badge variant="outline" style={styles.completedBadge}>Terminée</Badge>;
       default:
         return null;
+    }
+  };
+
+  const handleMenuPress = (listing: any) => {
+    setSelectedListingForMenu(listing);
+    setMenuVisible(true);
+  };
+
+  const handleDelete = () => {
+    if (!selectedListingForMenu) return;
+    
+    Alert.alert(
+      "Supprimer l'annonce",
+      `Êtes-vous sûr de vouloir supprimer "${selectedListingForMenu.title}" ? Cette action est irréversible.`,
+      [
+        {
+          text: "Annuler",
+          style: "cancel"
+        },
+        {
+          text: "Supprimer",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteAnnouncement(Number(selectedListingForMenu.id));
+              setMenuVisible(false);
+              setSelectedListingForMenu(null);
+              // Reload listings
+              const loadUserListings = async () => {
+                if (!isAuthenticated || !user?.username || !accessToken) return;
+
+                try {
+                  const announcements = await listAnnouncementsByOwner(user.username);
+                  
+                  if (announcements) {
+                    const listingsWithStats = await Promise.all(announcements.map(async (ann) => {
+                      const applications = await listApplications({ announcementId: ann.id });
+                      
+                      const publicImageUris = normalizeImageList(ann.publicImages);
+
+                      return {
+                        id: String(ann.id),
+                        title: ann.title,
+                        location: ann.location,
+                        price: ann.remuneration || 0,
+                        period: ann.startDate ? new Date(ann.startDate).toLocaleDateString('fr-FR') : '',
+                        frequency: ann.visitFrequency || "À discuter",
+                        status: ann.status?.toLowerCase() || 'pending',
+                        applications: applications?.length || 0,
+                        imageUri: publicImageUris[0] || null,
+                        tags: ann.careTypeLabel ? [ann.careTypeLabel] : [],
+                        createdAt: ann.createdAt ? new Date(ann.createdAt).toLocaleDateString('fr-FR') : 'Récemment',
+                      };
+                    }));
+
+                    const grouped = {
+                      active: listingsWithStats.filter(l => l.status === 'published' || l.status === 'in_progress'),
+                      completed: listingsWithStats.filter(l => l.status === 'completed'),
+                    };
+
+                    setUserListings(grouped);
+                  }
+                } catch (error) {
+                  console.error('Error reloading listings:', error);
+                  Alert.alert("Erreur", "Impossible de recharger les annonces.");
+                }
+              };
+              loadUserListings();
+            } catch (error) {
+              console.error('Error deleting announcement:', error);
+              Alert.alert("Erreur", "Impossible de supprimer l'annonce.");
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleChangeStatus = () => {
+    setMenuVisible(false);
+    setShowStatusModal(true);
+  };
+
+  const handleStatusSelect = async (status: AnnouncementStatus) => {
+    if (!selectedListingForMenu) return;
+
+    try {
+      await updateAnnouncementStatus(Number(selectedListingForMenu.id), status);
+      setShowStatusModal(false);
+      setSelectedListingForMenu(null);
+      
+      // Reload listings
+      const loadUserListings = async () => {
+        if (!isAuthenticated || !user?.username || !accessToken) return;
+
+        try {
+          const announcements = await listAnnouncementsByOwner(user.username);
+          
+          if (announcements) {
+            const listingsWithStats = await Promise.all(announcements.map(async (ann) => {
+              const applications = await listApplications({ announcementId: ann.id });
+              
+              const publicImageUris = normalizeImageList(ann.publicImages);
+
+              return {
+                id: String(ann.id),
+                title: ann.title,
+                location: ann.location,
+                price: ann.remuneration || 0,
+                period: ann.startDate ? new Date(ann.startDate).toLocaleDateString('fr-FR') : '',
+                frequency: ann.visitFrequency || "À discuter",
+                status: ann.status?.toLowerCase() || 'pending',
+                applications: applications?.length || 0,
+                imageUri: publicImageUris[0] || null,
+                tags: ann.careTypeLabel ? [ann.careTypeLabel] : [],
+                createdAt: ann.createdAt ? new Date(ann.createdAt).toLocaleDateString('fr-FR') : 'Récemment',
+              };
+            }));
+
+            const grouped = {
+              active: listingsWithStats.filter(l => l.status === 'published' || l.status === 'in_progress'),
+              completed: listingsWithStats.filter(l => l.status === 'completed'),
+            };
+
+            setUserListings(grouped);
+          }
+        } catch (error) {
+          console.error('Error reloading listings:', error);
+        }
+      };
+      loadUserListings();
+    } catch (error) {
+      console.error('Error updating status:', error);
+      Alert.alert("Erreur", "Impossible de modifier le statut de l'annonce.");
+    }
+  };
+
+  const getStatusLabel = (status: AnnouncementStatus): string => {
+    switch (status) {
+      case 'PUBLISHED':
+        return 'Publiée';
+      case 'IN_PROGRESS':
+        return 'En cours';
+      case 'COMPLETED':
+        return 'Terminée';
+      default:
+        return status;
     }
   };
 
@@ -190,7 +341,12 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
               <Icon name="create" size={16} color={theme.colors.foreground} style={styles.buttonIcon} />
               <Text style={styles.buttonText}>Modifier</Text>
             </Button>
-            <Button variant="ghost" size="sm" style={styles.moreButton}>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              style={styles.moreButton}
+              onPress={() => handleMenuPress(listing)}
+            >
               <Icon name="ellipsis-vertical" size={16} color={theme.colors.foreground} />
             </Button>
           </View>
@@ -332,7 +488,7 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
                   }));
 
                   const grouped = {
-                    active: listingsWithStats.filter(l => l.status === 'published'),
+                    active: listingsWithStats.filter(l => l.status === 'published' || l.status === 'in_progress'),
                     completed: listingsWithStats.filter(l => l.status === 'completed'),
                   };
 
@@ -346,6 +502,80 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
           }}
         />
       )}
+
+      {/* Menu Modal */}
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.menuOverlay}
+          activeOpacity={1}
+          onPress={() => setMenuVisible(false)}
+        >
+          <View style={styles.menuContent}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={handleChangeStatus}
+            >
+              <Icon name="swap-vertical" size={20} color={theme.colors.foreground} />
+              <Text style={styles.menuItemText}>Changer le statut</Text>
+            </TouchableOpacity>
+            <View style={styles.menuDivider} />
+            <TouchableOpacity
+              style={[styles.menuItem, styles.deleteMenuItem]}
+              onPress={handleDelete}
+            >
+              <Icon name="trash" size={20} color="#ef4444" />
+              <Text style={[styles.menuItemText, styles.deleteMenuText]}>Supprimer</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Status Selection Modal */}
+      <Modal
+        visible={showStatusModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowStatusModal(false);
+          setSelectedListingForMenu(null);
+        }}
+      >
+        <View style={styles.statusModalOverlay}>
+          <View style={styles.statusModalContent}>
+            <View style={styles.statusModalHeader}>
+              <Text style={styles.statusModalTitle}>Changer le statut</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowStatusModal(false);
+                  setSelectedListingForMenu(null);
+                }}
+              >
+                <Icon name="Close" size={24} color={theme.colors.foreground} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.statusModalSubtitle}>
+              Sélectionnez le nouveau statut pour "{selectedListingForMenu?.title}"
+            </Text>
+            <View style={styles.statusOptions}>
+              {(['PUBLISHED', 'IN_PROGRESS', 'COMPLETED'] as AnnouncementStatus[]).map((status) => (
+                <TouchableOpacity
+                  key={status}
+                  style={styles.statusOption}
+                  onPress={() => handleStatusSelect(status)}
+                >
+                  <Text style={styles.statusOptionText}>{getStatusLabel(status)}</Text>
+                  <Icon name="ChevronRight" size={16} color={theme.colors.mutedForeground} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -678,5 +908,87 @@ const styles = StyleSheet.create({
   clickableValue: {
     color: theme.colors.primary,
     fontWeight: theme.fontWeight.medium,
+  },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  menuContent: {
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.borderRadius.lg,
+    minWidth: 200,
+    ...theme.shadows.md,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+  },
+  deleteMenuItem: {
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  menuItemText: {
+    fontSize: theme.fontSize.base,
+    color: theme.colors.foreground,
+  },
+  deleteMenuText: {
+    color: '#ef4444',
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: theme.colors.border,
+  },
+  statusModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  statusModalContent: {
+    backgroundColor: theme.colors.background,
+    borderTopLeftRadius: theme.borderRadius.xl,
+    borderTopRightRadius: theme.borderRadius.xl,
+    paddingTop: theme.spacing.xl,
+    paddingBottom: theme.spacing['2xl'],
+    paddingHorizontal: theme.spacing.lg,
+    maxHeight: '80%',
+  },
+  statusModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  statusModalTitle: {
+    fontSize: theme.fontSize.xl,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.foreground,
+  },
+  statusModalSubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
+    marginBottom: theme.spacing.xl,
+  },
+  statusOptions: {
+    gap: theme.spacing.sm,
+  },
+  statusOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.inputBackground,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  statusOptionText: {
+    fontSize: theme.fontSize.base,
+    color: theme.colors.foreground,
   },
 });

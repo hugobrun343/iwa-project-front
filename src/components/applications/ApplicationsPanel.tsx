@@ -34,46 +34,70 @@ export function ApplicationsPanel({
   const { getUserByUsername } = useUserApi();
   const { getAverageRating } = useRatingsApi();
 
-  useEffect(() => {
-    if (visible && announcementId) {
-      loadApplications();
-    }
-  }, [visible, announcementId]);
-
   const loadApplications = async () => {
+    if (!announcementId) {
+      console.warn('ApplicationsPanel: announcementId is missing');
+      return;
+    }
+    
     try {
       setIsLoading(true);
       const apps = await listApplications({ announcementId });
       
-      if (apps && apps.length > 0) {
-        // Enrich applications with guardian info and ratings
-        const enrichedApps = await Promise.all(
-          apps.map(async (app) => {
-            try {
-              const guardian = await getUserByUsername(app.guardianUsername);
-              const rating = await getAverageRating(app.guardianUsername);
-              return {
-                ...app,
-                guardian,
-                rating: rating !== null && rating !== undefined ? Number(rating.toFixed(1)) : undefined,
-              };
-            } catch (error) {
-              console.error(`Error loading guardian info for ${app.guardianUsername}:`, error);
-              return app;
-            }
-          })
-        );
-        setApplications(enrichedApps);
-      } else {
+
+      // Handle null/undefined or empty array
+      if (!apps) {
+        console.warn('Applications is null or undefined');
         setApplications([]);
+        return;
       }
+
+      if (apps.length === 0) {
+        console.log('No applications found');
+        setApplications([]);
+        return;
+      }
+
+      // Enrich applications with guardian info and ratings
+      console.log('Enriching applications...');
+      const enrichedApps = await Promise.all(
+        apps.map(async (app) => {
+          try {
+            const guardian = await getUserByUsername(app.guardianUsername);
+            const rating = await getAverageRating(app.guardianUsername);
+            return {
+              ...app,
+              guardian,
+              rating: rating !== null && rating !== undefined ? Number(rating.toFixed(1)) : undefined,
+            };
+          } catch (error) {
+            console.error(`Error loading guardian info for ${app.guardianUsername}:`, error);
+            return app;
+          }
+        })
+      );
+      
+      console.log('Enriched applications:', enrichedApps);
+      console.log('Setting applications state with', enrichedApps.length, 'items');
+      setApplications(enrichedApps);
     } catch (error) {
       console.error('Error loading applications:', error);
       Alert.alert('Erreur', 'Impossible de charger les candidatures.');
+      setApplications([]);
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (visible && announcementId) {
+      loadApplications();
+    } else if (!visible) {
+      // Reset applications when modal is closed
+      setApplications([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, announcementId]);
 
   const handleUpdateStatus = async (applicationId: number, newStatus: 'ACCEPTED' | 'REFUSED') => {
     try {
@@ -104,6 +128,12 @@ export function ApplicationsPanel({
 
   const sentApplications = applications.filter(app => app.status === 'SENT');
   const otherApplications = applications.filter(app => app.status !== 'SENT');
+  
+  // Debug logs
+  console.log('Total applications in state:', applications.length);
+  console.log('Sent applications:', sentApplications.length);
+  console.log('Other applications:', otherApplications.length);
+  console.log('Applications statuses:', applications.map(app => ({ id: app.id, status: app.status })));
 
   return (
     <Modal
@@ -134,7 +164,7 @@ export function ApplicationsPanel({
               </View>
             ) : applications.length === 0 ? (
               <View style={styles.emptyState}>
-                <Icon name="Person" size={64} color={theme.colors.mutedForeground} />
+                <Icon name="person" size={64} color={theme.colors.mutedForeground} />
                 <Text style={styles.emptyTitle}>Aucune candidature</Text>
                 <Text style={styles.emptyDescription}>
                   Aucune candidature n'a été reçue pour cette annonce pour le moment.
@@ -176,6 +206,16 @@ export function ApplicationsPanel({
                       />
                     ))}
                   </>
+                )}
+                
+                {/* Debug: Show if applications exist but no sections are displayed */}
+                {applications.length > 0 && sentApplications.length === 0 && otherApplications.length === 0 && (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyTitle}>Problème d'affichage</Text>
+                    <Text style={styles.emptyDescription}>
+                      {applications.length} candidature(s) chargée(s) mais non affichée(s). Vérifiez les logs de la console.
+                    </Text>
+                  </View>
                 )}
               </View>
             )}
@@ -324,6 +364,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
     borderTopLeftRadius: theme.borderRadius.xl,
     borderTopRightRadius: theme.borderRadius.xl,
+    height: '85%',
     maxHeight: '90%',
     paddingBottom: 30,
   },

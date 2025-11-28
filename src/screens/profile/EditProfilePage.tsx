@@ -135,14 +135,32 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
       try {
         setIsLoading(true);
         
-        // Load profile data
-        const [profileData, languagesData, specialisationsData, allLanguages, allSpecialisations] = await Promise.all([
+        // Load profile data - use Promise.allSettled to handle individual failures
+        const results = await Promise.allSettled([
           getMyProfile(),
           getMyLanguages(),
           getMySpecialisations(),
           getLanguages(),
           getSpecialisations(),
         ]);
+
+        const profileData = results[0].status === 'fulfilled' ? results[0].value : null;
+        const languagesData = results[1].status === 'fulfilled' ? results[1].value : null;
+        const specialisationsData = results[2].status === 'fulfilled' ? results[2].value : null;
+        const allLanguages = results[3].status === 'fulfilled' ? results[3].value : [];
+        const allSpecialisations = results[4].status === 'fulfilled' ? results[4].value : [];
+
+        // Extract languages and specialisations labels
+        // Handle both 'language' and 'label' properties for backward compatibility
+        const loadedLanguages = languagesData?.map(l => l.language || l.label || '') || [];
+        const loadedSkills = specialisationsData?.map(s => s.specialisation || s.label || '') || [];
+        
+        // Debug logging
+        console.log(results[2]);
+        console.log('Loaded languages:', loadedLanguages);
+        console.log('Loaded specialisations:', loadedSkills);
+        console.log('Available languages:', allLanguages?.map(l => l.label));
+        console.log('Available specialisations:', allSpecialisations?.map(s => s.label));
 
         if (profileData) {
           setProfile({
@@ -153,11 +171,18 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
             bio: profileData.description || "",
             location: profileData.location || "",
             avatar: normalizeImageValue(profileData.profilePhoto) ?? "",
-            languages: languagesData?.map(l => l.label) || [],
-            skills: specialisationsData?.map(s => s.label) || [],
+            languages: loadedLanguages,
+            skills: loadedSkills,
             availability: "", // Not available in API yet
             priceRange: "" // Not available in API yet
           });
+        } else {
+          // Even if profileData is null, we should still set languages and skills if they were loaded
+          setProfile(prev => ({
+            ...prev,
+            languages: loadedLanguages,
+            skills: loadedSkills,
+          }));
         }
 
         setAvailableLanguages(allLanguages ?? []);
@@ -266,15 +291,21 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
 
       const updatedProfile = await updateMyProfile(profileUpdates);
       
-      // Update languages
-      if (profile.languages.length > 0) {
-        await updateMyLanguages(profile.languages);
-      }
+      // Update languages and specialisations - handle errors separately so profile update can succeed
+      const updateResults = await Promise.allSettled([
+        // Always update languages (even if empty array to clear them)
+        updateMyLanguages(profile.languages),
+        // Always update specialisations (even if empty array to clear them)
+        updateMySpecialisations(profile.skills),
+      ]);
 
-      // Update specialisations
-      if (profile.skills.length > 0) {
-        await updateMySpecialisations(profile.skills);
-      }
+      // Log any errors but don't fail the entire save
+      updateResults.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const type = index === 0 ? 'languages' : 'specialisations';
+          console.error(`Error updating ${type}:`, result.reason);
+        }
+      });
 
       if (updatedProfile) {
         // Update AuthContext with new profile data
@@ -534,23 +565,6 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
               )}
             </View>
 
-            <View style={styles.inputGroup}>
-              <Label>Disponibilité</Label>
-              <Input
-                value={profile.availability}
-                onChangeText={(text) => setProfile(prev => ({ ...prev, availability: text }))}
-                placeholder="Weekends, Vacances scolaires..."
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Label>Tarifs</Label>
-              <Input
-                value={profile.priceRange}
-                onChangeText={(text) => setProfile(prev => ({ ...prev, priceRange: text }))}
-                placeholder="20-50€ par jour"
-              />
-            </View>
           </CardContent>
         </Card>
 
@@ -672,23 +686,6 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
           </CardContent>
         </Card>
 
-        {/* Danger Zone */}
-        <Card style={StyleSheet.flatten([styles.sectionCard, styles.dangerCard])}>
-          <CardContent style={styles.sectionContent}>
-            <Text style={styles.sectionTitle}>Zone de danger</Text>
-            
-            <TouchableOpacity style={styles.dangerAction}>
-              <Text style={styles.dangerText}>Désactiver temporairement mon compte</Text>
-              <Icon name="chevron-forward" size={20} color="#ef4444" />
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.dangerAction}>
-              <Text style={styles.dangerText}>Supprimer définitivement mon compte</Text>
-              <Icon name="chevron-forward" size={20} color="#ef4444" />
-            </TouchableOpacity>
-          </CardContent>
-        </Card>
-
         {/* Save Button */}
         <View style={styles.saveSection}>
           <Button 
@@ -782,9 +779,6 @@ const styles = StyleSheet.create({
     marginHorizontal: theme.spacing.lg,
     marginBottom: theme.spacing.md,
   },
-  dangerCard: {
-    borderColor: '#fecaca',
-  },
   sectionContent: {
     padding: theme.spacing.lg,
   },
@@ -866,18 +860,6 @@ const styles = StyleSheet.create({
   settingDescription: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.mutedForeground,
-  },
-  dangerAction: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: '#fecaca',
-  },
-  dangerText: {
-    fontSize: theme.fontSize.md,
-    color: '#ef4444',
   },
   saveSection: {
     padding: theme.spacing.lg,
