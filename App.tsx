@@ -198,7 +198,6 @@ function MainApp() {
               tags: careType ? [careType] : [],
               careType: careType,
               isLiked: isFavorite,
-              rating: 4.5,
               reviewCount: 0,
               ownerUsername: ann.ownerUsername || '',
               startDate: ann.startDate || null,

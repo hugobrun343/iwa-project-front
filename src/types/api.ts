@@ -134,14 +134,16 @@ export interface FavoriteCheckResponse {
 }
 
 export interface RatingPayload {
-  score: number;
-  comment?: string;
+  note: number;
+  commentaire?: string;
 }
 
-export interface RatingDto extends RatingPayload {
+export interface RatingDto {
   id: number;
   authorId: string;
   recipientId: string;
+  note: number;
+  commentaire?: string;
   createdAt: string;
   updatedAt: string;
 }

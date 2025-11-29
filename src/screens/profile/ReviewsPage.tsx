@@ -208,17 +208,6 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
         <Text style={styles.reviewComment}>
           {review.comment || review.commentaire || "Aucun commentaire fourni."}
         </Text>
-
-        <View style={styles.reviewActions}>
-          <Button variant="ghost" size="sm" style={styles.actionButton}>
-            <Icon name="chatbubble" size={16} color={theme.colors.primary} />
-            <Text style={styles.actionText}>Répondre</Text>
-          </Button>
-          <Button variant="ghost" size="sm" style={styles.actionButton}>
-            <Icon name="share" size={16} color={theme.colors.primary} />
-            <Text style={styles.actionText}>Partager</Text>
-          </Button>
-        </View>
       </CardContent>
     </Card>
   );

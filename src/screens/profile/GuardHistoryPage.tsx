@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, Alert } from 'react-native';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Icon } from '../../components/ui/Icon';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { ImageWithFallback } from '../../components/ui/ImageWithFallback';
+import { Textarea } from '../../components/ui/Textarea';
 import { theme } from '../../styles/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { useApplicationsApi } from '../../hooks/api/useApplicationsApi';
@@ -26,6 +26,7 @@ interface GuardData {
   period: string;
   duration: string;
   owner: string;
+  ownerUsername?: string;
   ownerAvatar?: string;
   payment: number;
   rating?: number;
@@ -36,6 +37,8 @@ interface GuardData {
   status?: string;
   daysLeft?: number;
   announcementId: number;
+  ratingGiven?: boolean;
+  ratingId?: number;
 }
 
 export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
@@ -43,10 +46,15 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
   const { user } = useAuth();
   const { listApplications } = useApplicationsApi();
   const { getAnnouncementById } = useAnnouncementsApi();
-  const { getRatingsReceived } = useRatingsApi();
+  const { getRatingsReceived, getRatingsGiven, createRating, updateRating } = useRatingsApi();
   const { getUserByUsername } = useUserApi();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [ratingModalVisible, setRatingModalVisible] = useState(false);
+  const [selectedGuard, setSelectedGuard] = useState<GuardData | null>(null);
+  const [ratingScore, setRatingScore] = useState(0);
+  const [ratingComment, setRatingComment] = useState('');
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [guardHistory, setGuardHistory] = useState<{
     completed: GuardData[];
     upcoming: GuardData[];
@@ -283,17 +291,39 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
             // Fetch rating if completed - ratings given TO the guardian (user) BY the owner
             let rating: number | undefined;
             let review: string | undefined;
+            let ratingGiven = false;
+            let ratingId: number | undefined;
+            
             if (status === 'completed') {
               try {
-                const ratings = await getRatingsReceived(user.username, { limit: 100, page: 0 });
-                if (ratings?.content) {
+                // Get rating received by guardian from owner
+                const ratingsReceived = await getRatingsReceived(user.username, { limit: 100, page: 0 });
+                if (ratingsReceived?.content) {
                   // Find rating from the owner for this guard
-                  const guardRating = ratings.content.find((r: RatingDto) => 
+                  const guardRating = ratingsReceived.content.find((r: RatingDto) => 
                     r.authorId === announcement.ownerUsername
                   );
                   if (guardRating) {
-                    rating = guardRating.score;
-                    review = guardRating.comment;
+                    rating = guardRating.note ?? guardRating.score ?? 0;
+                    review = guardRating.commentaire ?? guardRating.comment;
+                  }
+                }
+                
+                // Check if guardian has given a rating to the owner
+                if (announcement.ownerUsername) {
+                  try {
+                    const ratingsGiven = await getRatingsGiven(user.username, { limit: 100, page: 0 });
+                    if (ratingsGiven?.content) {
+                      const givenRating = ratingsGiven.content.find((r: RatingDto) => 
+                        r.recipientId === announcement.ownerUsername
+                      );
+                      if (givenRating) {
+                        ratingGiven = true;
+                        ratingId = givenRating.id;
+                      }
+                    }
+                  } catch (err) {
+                    console.warn('Failed to fetch ratings given:', err);
                   }
                 }
               } catch (err) {
@@ -325,6 +355,7 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
               period,
               duration,
               owner: ownerInfo ? `${ownerInfo.firstName || ''} ${ownerInfo.lastName || ''}`.trim() || announcement.ownerUsername || 'Propriétaire' : announcement.ownerUsername || 'Propriétaire',
+              ownerUsername: announcement.ownerUsername,
               ownerAvatar: ownerInfo?.profilePhoto,
               payment: announcement.remuneration || 0,
               rating,
@@ -335,6 +366,8 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
               status: status === 'current' ? 'in_progress' : status === 'upcoming' ? 'confirmed' : 'completed',
               daysLeft: endDate && status === 'current' ? calculateDaysLeft(announcement.endDate!) : undefined,
               announcementId: announcement.id,
+              ratingGiven,
+              ratingId,
             };
             
             console.log(`Created guardData for application ${app.id}:`, {
@@ -399,11 +432,63 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
       } finally {
         setIsLoading(false);
       }
-  }, [user?.username, listApplications, getAnnouncementById, getRatingsReceived, getUserByUsername]);
+  }, [user?.username, listApplications, getAnnouncementById, getRatingsReceived, getRatingsGiven, getUserByUsername]);
 
   useEffect(() => {
     fetchGuardHistory();
   }, [fetchGuardHistory]);
+
+  const handleOpenRatingModal = (guard: GuardData) => {
+    setSelectedGuard(guard);
+    setRatingScore(0);
+    setRatingComment('');
+    setRatingModalVisible(true);
+  };
+
+  const handleSubmitRating = async () => {
+    if (!selectedGuard?.ownerUsername || ratingScore === 0) {
+      Alert.alert('Erreur', 'Veuillez sélectionner une note');
+      return;
+    }
+
+    if (!user?.username) {
+      Alert.alert('Erreur', 'Utilisateur non connecté');
+      return;
+    }
+
+    try {
+      setIsSubmittingRating(true);
+      
+      if (selectedGuard.ratingId) {
+        // Update existing rating
+        await updateRating(selectedGuard.ratingId, {
+          note: ratingScore,
+          commentaire: ratingComment || undefined,
+        });
+      } else {
+        // Create new rating
+        await createRating(selectedGuard.ownerUsername, {
+          note: ratingScore,
+          commentaire: ratingComment || undefined,
+        });
+      }
+
+      setRatingModalVisible(false);
+      setSelectedGuard(null);
+      setRatingScore(0);
+      setRatingComment('');
+      
+      // Refresh guard history to show updated rating
+      await fetchGuardHistory();
+      
+      Alert.alert('Succès', 'Votre évaluation a été enregistrée');
+    } catch (err) {
+      console.error('Error submitting rating:', err);
+      Alert.alert('Erreur', 'Impossible d\'enregistrer l\'évaluation. Veuillez réessayer.');
+    } finally {
+      setIsSubmittingRating(false);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -495,11 +580,25 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
                 key={i} 
                 name="star" 
                 size={16} 
-                color={i < guard.rating ? "#fbbf24" : "#d1d5db"} 
+                color={i < (guard.rating || 0) ? "#fbbf24" : "#d1d5db"} 
               />
             ))}
             <Text style={styles.ownerText}>par {guard.owner}</Text>
           </View>
+        </View>
+
+        <View style={styles.actionButtons}>
+          {!guard.ratingGiven && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              style={styles.rateButton}
+              onPress={() => handleOpenRatingModal(guard)}
+            >
+              <Icon name="star" size={16} color={theme.colors.foreground} style={styles.buttonIcon} />
+              <Text style={styles.buttonText}>Noter le propriétaire</Text>
+            </Button>
+          )}
           <Button variant="ghost" size="sm" style={styles.contactButton}>
             <Icon name="chatbubble" size={16} color={theme.colors.foreground} style={styles.buttonIcon} />
             <Text style={styles.contactButtonText}>Contacter</Text>
@@ -819,6 +918,89 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
           {renderTabContent()}
         </View>
       </ScrollView>
+
+      {/* Rating Modal */}
+      <Modal
+        visible={ratingModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setRatingModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Noter le propriétaire</Text>
+              <TouchableOpacity
+                onPress={() => setRatingModalVisible(false)}
+                style={styles.modalCloseButton}
+              >
+                <Icon name="close" size={24} color={theme.colors.foreground} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedGuard && (
+              <>
+                <Text style={styles.modalSubtitle}>{selectedGuard.title}</Text>
+                <Text style={styles.modalOwnerText}>Propriétaire: {selectedGuard.owner}</Text>
+
+                <View style={styles.ratingInputContainer}>
+                  <Text style={styles.ratingLabel}>Note (1-5 étoiles)</Text>
+                  <View style={styles.ratingStarsInput}>
+                    {[...Array(5)].map((_, i) => (
+                      <TouchableOpacity
+                        key={i}
+                        onPress={() => setRatingScore(i + 1)}
+                        style={styles.starButton}
+                      >
+                        <Icon
+                          name="star"
+                          size={32}
+                          color={i < ratingScore ? "#fbbf24" : "#d1d5db"}
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {ratingScore > 0 && (
+                    <Text style={styles.ratingScoreText}>{ratingScore} / 5</Text>
+                  )}
+                </View>
+
+                <View style={styles.commentContainer}>
+                  <Text style={styles.commentLabel}>Commentaire (optionnel)</Text>
+                  <Textarea
+                    value={ratingComment}
+                    onChangeText={setRatingComment}
+                    placeholder="Partagez votre expérience..."
+                    rows={4}
+                    style={styles.commentInput}
+                  />
+                </View>
+
+                <View style={styles.modalActions}>
+                  <Button
+                    variant="outline"
+                    onPress={() => setRatingModalVisible(false)}
+                    style={styles.modalCancelButton}
+                  >
+                    <Text>Annuler</Text>
+                  </Button>
+                  <Button
+                    onPress={handleSubmitRating}
+                    disabled={ratingScore === 0 || isSubmittingRating}
+                    style={styles.modalSubmitButton}
+                  >
+                    {isSubmittingRating ? (
+                      <ActivityIndicator size="small" color={theme.colors.primaryForeground} />
+                    ) : (
+                      <Text style={styles.modalSubmitText}>Enregistrer</Text>
+                    )}
+                  </Button>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1031,9 +1213,8 @@ const styles = StyleSheet.create({
   },
   ratingRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
   },
   starsRow: {
     flexDirection: 'row',
@@ -1163,5 +1344,99 @@ const styles = StyleSheet.create({
   },
   retryButton: {
     marginTop: theme.spacing.md,
+  },
+  rateButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.xs,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: theme.colors.background,
+    borderTopLeftRadius: theme.borderRadius.xl,
+    borderTopRightRadius: theme.borderRadius.xl,
+    padding: theme.spacing.lg,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
+  },
+  modalTitle: {
+    fontSize: theme.fontSize.xl,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.foreground,
+  },
+  modalCloseButton: {
+    padding: theme.spacing.xs,
+  },
+  modalSubtitle: {
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.medium,
+    color: theme.colors.foreground,
+    marginBottom: theme.spacing.xs,
+  },
+  modalOwnerText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
+    marginBottom: theme.spacing.lg,
+  },
+  ratingInputContainer: {
+    marginBottom: theme.spacing.lg,
+  },
+  ratingLabel: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.foreground,
+    marginBottom: theme.spacing.md,
+    fontWeight: theme.fontWeight.medium,
+  },
+  ratingStarsInput: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+  },
+  starButton: {
+    padding: theme.spacing.xs,
+  },
+  ratingScoreText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
+    textAlign: 'center',
+    marginTop: theme.spacing.xs,
+  },
+  commentContainer: {
+    marginBottom: theme.spacing.lg,
+  },
+  commentLabel: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.foreground,
+    marginBottom: theme.spacing.sm,
+    fontWeight: theme.fontWeight.medium,
+  },
+  commentInput: {
+    marginBottom: 0,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    marginTop: theme.spacing.md,
+  },
+  modalCancelButton: {
+    flex: 1,
+  },
+  modalSubmitButton: {
+    flex: 1,
+  },
+  modalSubmitText: {
+    color: theme.colors.primaryForeground,
   },
 });

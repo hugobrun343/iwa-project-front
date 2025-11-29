@@ -223,7 +223,7 @@ export class AuthService {
       return this.mapUserInfoFromToken(token);
     }
   }
-  static async refreshAccessToken(refreshToken: string): Promise<any> {
+  static async refreshAccessToken(refreshToken: string, silent = false): Promise<any> {
     try {
       // Prefer dynamic issuer captured from redirect to avoid mismatches
       const tokenUrl = AuthService.lastIssuer 
@@ -254,19 +254,6 @@ export class AuthService {
       });
       const text = await response.text();
       if (!response.ok) {
-        console.error('❌ Token refresh failed', { 
-          status: response.status, 
-          statusText: response.statusText,
-          body: text,
-          requestDetails: {
-            tokenUrl,
-            client_id: KEYCLOAK_CONFIG.clientId,
-            redirect_uri: KEYCLOAK_CONFIG.redirectUri,
-            has_client_secret: !!clientSecret,
-            using_dynamic_issuer: !!AuthService.lastIssuer,
-          }
-        });
-        
         // Try to parse error details
         let errorData: any = null;
         try {
@@ -277,6 +264,26 @@ export class AuthService {
         const errorDescription = errorData?.error_description || '';
         const errorMsg = errorDescription || errorCode || text;
         
+        // Only log errors if not in silent mode or if it's not an expected invalid_grant error
+        const isInvalidGrant = errorCode === 'invalid_grant' || 
+                              errorDescription.toLowerCase().includes('invalid token issuer') ||
+                              errorDescription.toLowerCase().includes('invalid grant');
+        
+        if (!silent || !isInvalidGrant) {
+          console.error('❌ Token refresh failed', { 
+            status: response.status, 
+            statusText: response.statusText,
+            body: text,
+            requestDetails: {
+              tokenUrl,
+              client_id: KEYCLOAK_CONFIG.clientId,
+              redirect_uri: KEYCLOAK_CONFIG.redirectUri,
+              has_client_secret: !!clientSecret,
+              using_dynamic_issuer: !!AuthService.lastIssuer,
+            }
+          });
+        }
+        
         // If we get "invalid_client" or "invalid_client_credentials" and we included client_secret,
         // the client might be public - retry without client_secret
         if (
@@ -284,7 +291,9 @@ export class AuthService {
            errorDescription.toLowerCase().includes('invalid client')) &&
           clientSecret
         ) {
-          console.log('⚠️ Token refresh failed with client_secret, retrying without it (client might be public)...');
+          if (!silent) {
+            console.log('⚠️ Token refresh failed with client_secret, retrying without it (client might be public)...');
+          }
           
           // Retry without client_secret
           const retryParams = new URLSearchParams({
@@ -306,17 +315,21 @@ export class AuthService {
           
           const retryText = await retryResponse.text();
           if (retryResponse.ok) {
-            console.log('✅ Token refresh succeeded without client_secret (public client)');
+            if (!silent) {
+              console.log('✅ Token refresh succeeded without client_secret (public client)');
+            }
             try { 
               return JSON.parse(retryText); 
             } catch { 
               return retryText; 
             }
           } else {
-            console.error('❌ Token refresh retry also failed', { 
-              status: retryResponse.status, 
-              body: retryText 
-            });
+            if (!silent) {
+              console.error('❌ Token refresh retry also failed', { 
+                status: retryResponse.status, 
+                body: retryText 
+              });
+            }
           }
         }
         
@@ -324,7 +337,9 @@ export class AuthService {
       }
       try { return JSON.parse(text); } catch { return text; }
     } catch (error) {
-      console.error('Token refresh error:', error);
+      if (!silent) {
+        console.error('Token refresh error:', error);
+      }
       throw error;
     }
   }
