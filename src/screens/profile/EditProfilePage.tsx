@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch, ActivityIndicator, Alert, Platform } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
@@ -9,25 +10,47 @@ import { Label } from '../../components/ui/Label';
 import { Icon } from '../../components/ui/Icon';
 import { ImageWithFallback } from '../../components/ui/ImageWithFallback';
 import { theme } from '../../styles/theme';
+import { useAuth } from '../../contexts/AuthContext';
+import { useUserApi } from '../../hooks/api/useUserApi';
+import { LabelDto } from '../../types/api';
+import { buildDataUri, extractBase64, normalizeImageValue } from '../../utils/imageUtils';
 
 interface EditProfilePageProps {
   onBack: () => void;
 }
 
 export function EditProfilePage({ onBack }: EditProfilePageProps) {
+  const { user, updateUserProfile } = useAuth();
+  const { 
+    getMyProfile, 
+    updateMyProfile, 
+    getMyLanguages, 
+    updateMyLanguages,
+    getMySpecialisations,
+    updateMySpecialisations,
+    getLanguages,
+    getSpecialisations,
+    isLoading: apiLoading 
+  } = useUserApi();
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  
   const [profile, setProfile] = useState({
-    firstName: "Sophie",
-    lastName: "Martin",
-    email: "sophie.martin@example.com",
-    phone: "+33 6 12 34 56 78",
-    bio: "Passionnée d'animaux et de plantes, j'adore prendre soin des compagnons de vos amis à quatre pattes et de vos plantes vertes. Expérience de 3 ans dans la garde d'animaux.",
-    location: "Paris, France",
-    avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b65c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
-    languages: ["Français", "Anglais"],
-    skills: ["Chiens", "Chats", "Plantes d'intérieur", "Arrosage"],
-    availability: "Weekends et vacances scolaires",
-    priceRange: "20-50€ par jour"
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    bio: "",
+    location: "",
+    avatar: "",
+    languages: [] as string[],
+    skills: [] as string[],
+    availability: "",
+    priceRange: ""
   });
+  const [availableLanguages, setAvailableLanguages] = useState<LabelDto[]>([]);
+  const [availableSpecialisations, setAvailableSpecialisations] = useState<LabelDto[]>([]);
 
   const [notifications, setNotifications] = useState({
     messages: true,
@@ -43,11 +66,296 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
     locationVisible: true
   });
 
-  const handleSave = () => {
-    // Save profile logic
-    console.log('Saving profile...', profile);
-    onBack();
+  const requestPhotoPermissions = async () => {
+    if (Platform.OS !== 'web') {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission requise',
+          'Nous avons besoin de votre permission pour accéder à vos photos.',
+          [{ text: 'OK' }],
+        );
+        return false;
+      }
+    }
+    return true;
   };
+
+  const handleChangePhoto = async () => {
+    const hasPermission = await requestPhotoPermissions();
+    if (!hasPermission) return;
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+
+        if (!asset.base64) {
+          Alert.alert('Erreur', 'Impossible de traiter cette image. Veuillez réessayer.');
+          return;
+        }
+
+        const imageUri = buildDataUri(asset.base64, asset.mimeType);
+
+        if (!imageUri) {
+          Alert.alert('Erreur', 'Format de fichier non supporté.');
+          return;
+        }
+
+        setProfile(prev => ({
+          ...prev,
+          avatar: imageUri,
+        }));
+      }
+    } catch (error) {
+      console.error('Error picking profile photo:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner la photo de profil');
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setProfile(prev => ({
+      ...prev,
+      avatar: '',
+    }));
+  };
+
+  // Load user data on mount
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!user) return;
+
+      try {
+        setIsLoading(true);
+        
+        // Load profile data - use Promise.allSettled to handle individual failures
+        const results = await Promise.allSettled([
+          getMyProfile(),
+          getMyLanguages(),
+          getMySpecialisations(),
+          getLanguages(),
+          getSpecialisations(),
+        ]);
+
+        const profileData = results[0].status === 'fulfilled' ? results[0].value : null;
+        const languagesData = results[1].status === 'fulfilled' ? results[1].value : null;
+        const specialisationsData = results[2].status === 'fulfilled' ? results[2].value : null;
+        const allLanguages = results[3].status === 'fulfilled' ? results[3].value : [];
+        const allSpecialisations = results[4].status === 'fulfilled' ? results[4].value : [];
+
+        // Extract languages and specialisations labels
+        // Handle both 'language' and 'label' properties for backward compatibility
+        const loadedLanguages = languagesData?.map(l => l.language || l.label || '') || [];
+        const loadedSkills = specialisationsData?.map(s => s.specialisation || s.label || '') || [];
+        
+        // Debug logging
+        console.log(results[2]);
+        console.log('Loaded languages:', loadedLanguages);
+        console.log('Loaded specialisations:', loadedSkills);
+        console.log('Available languages:', allLanguages?.map(l => l.label));
+        console.log('Available specialisations:', allSpecialisations?.map(s => s.label));
+
+        if (profileData) {
+          setProfile({
+            firstName: profileData.firstName || "",
+            lastName: profileData.lastName || "",
+            email: profileData.email || user.email || "",
+            phone: profileData.phoneNumber || "",
+            bio: profileData.description || "",
+            location: profileData.location || "",
+            avatar: normalizeImageValue(profileData.profilePhoto) ?? "",
+            languages: loadedLanguages,
+            skills: loadedSkills,
+            availability: "", // Not available in API yet
+            priceRange: "" // Not available in API yet
+          });
+        } else {
+          // Even if profileData is null, we should still set languages and skills if they were loaded
+          setProfile(prev => ({
+            ...prev,
+            languages: loadedLanguages,
+            skills: loadedSkills,
+          }));
+        }
+
+        setAvailableLanguages(allLanguages ?? []);
+        setAvailableSpecialisations(allSpecialisations ?? []);
+
+        // Load preferences if available
+        if (profileData?.preferences) {
+          try {
+            // Backend stores preferences as a JSON string
+            const prefsString = typeof profileData.preferences === 'string' 
+              ? profileData.preferences 
+              : JSON.stringify(profileData.preferences);
+            const prefs = JSON.parse(prefsString);
+            
+            if (prefs.notifications) {
+              setNotifications({
+                messages: prefs.notifications.messages ?? true,
+                bookings: prefs.notifications.bookings ?? true,
+                marketing: prefs.notifications.marketing ?? false,
+                reviews: prefs.notifications.reviews ?? true
+              });
+            }
+            if (prefs.privacy) {
+              setPrivacy({
+                profileVisible: prefs.privacy.profileVisible ?? true,
+                phoneVisible: prefs.privacy.phoneVisible ?? false,
+                emailVisible: prefs.privacy.emailVisible ?? false,
+                locationVisible: prefs.privacy.locationVisible ?? true
+              });
+            }
+          } catch (error) {
+            console.error('Error parsing preferences:', error);
+            // Use default preferences if parsing fails
+          }
+        }
+      } catch (error) {
+        console.error('Error loading profile:', error);
+        Alert.alert('Erreur', 'Impossible de charger les données du profil');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, [user, getMyProfile, getMyLanguages, getMySpecialisations, getLanguages, getSpecialisations]);
+
+  const toggleSelection = (type: 'language' | 'skill', value: string) => {
+    setProfile(prev => {
+      const key = type === 'language' ? 'languages' : 'skills';
+      const exists = prev[key as 'languages' | 'skills'].includes(value);
+      const updated = exists
+        ? prev[key as 'languages' | 'skills'].filter(item => item !== value)
+        : [...prev[key as 'languages' | 'skills'], value];
+
+      return {
+        ...prev,
+        [key]: updated,
+      };
+    });
+  };
+
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      setIsSaving(true);
+
+      // Update profile
+      const profileUpdates: any = {
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        phoneNumber: profile.phone,
+        location: profile.location,
+        description: profile.bio,
+      };
+
+      let serializedAvatar: string | null | undefined;
+      if (profile.avatar) {
+        if (profile.avatar.startsWith('http') || profile.avatar.startsWith('file:')) {
+          serializedAvatar = profile.avatar;
+        } else {
+          serializedAvatar = extractBase64(profile.avatar) ?? profile.avatar;
+        }
+      } else if (profile.avatar === '') {
+        serializedAvatar = null;
+      }
+
+      if (serializedAvatar !== undefined) {
+        profileUpdates.profilePhoto = serializedAvatar;
+      }
+
+      // Serialize preferences as JSON string (backend expects String, not object)
+      const preferencesObj = {
+        notifications,
+        privacy
+      };
+      profileUpdates.preferences = JSON.stringify(preferencesObj);
+
+      // Remove empty fields (but keep preferences even if empty)
+      Object.keys(profileUpdates).forEach(key => {
+        if (key === 'preferences') return; // Always send preferences
+        if (profileUpdates[key] === "" || profileUpdates[key] === undefined) {
+          delete profileUpdates[key];
+        }
+      });
+
+      const updatedProfile = await updateMyProfile(profileUpdates);
+      
+      // Update languages and specialisations - handle errors separately so profile update can succeed
+      const updateResults = await Promise.allSettled([
+        // Always update languages (even if empty array to clear them)
+        updateMyLanguages(profile.languages),
+        // Always update specialisations (even if empty array to clear them)
+        updateMySpecialisations(profile.skills),
+      ]);
+
+      // Log any errors but don't fail the entire save
+      updateResults.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const type = index === 0 ? 'languages' : 'specialisations';
+          console.error(`Error updating ${type}:`, result.reason);
+        }
+      });
+
+      if (updatedProfile) {
+        // Update AuthContext with new profile data
+        const normalizedUpdatedAvatar = normalizeImageValue(updatedProfile.profilePhoto) ?? '';
+
+        await updateUserProfile({
+          firstName: updatedProfile.firstName,
+          lastName: updatedProfile.lastName,
+          telephone: updatedProfile.phoneNumber,
+          localisation: updatedProfile.location,
+          description: updatedProfile.description,
+          photo_profil: normalizedUpdatedAvatar,
+          email: updatedProfile.email,
+        });
+
+        setProfile(prev => ({
+          ...prev,
+          avatar: normalizedUpdatedAvatar,
+        }));
+
+        Alert.alert('Succès', 'Profil mis à jour avec succès');
+        onBack();
+      }
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      Alert.alert('Erreur', 'Impossible de sauvegarder le profil');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <TouchableOpacity onPress={onBack} style={styles.backButton}>
+              <Icon name="arrow-back" size={24} color={theme.colors.foreground} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Modifier le profil</Text>
+            <View style={styles.spacer} />
+          </View>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.loadingText}>Chargement du profil...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -58,8 +366,10 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
             <Icon name="arrow-back" size={24} color={theme.colors.foreground} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Modifier le profil</Text>
-          <TouchableOpacity onPress={handleSave}>
-            <Text style={styles.saveButton}>Sauver</Text>
+          <TouchableOpacity onPress={handleSave} disabled={isSaving}>
+            <Text style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}>
+              {isSaving ? 'Sauvegarde...' : 'Sauver'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -69,17 +379,34 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
         <Card style={styles.photoCard}>
           <CardContent style={styles.photoContent}>
             <View style={styles.photoSection}>
-              <ImageWithFallback
-                src={profile.avatar}
-                style={styles.profilePhoto}
-                alt={`${profile.firstName} ${profile.lastName}`}
-              />
+              {profile.avatar ? (
+                <ImageWithFallback
+                  source={{ uri: profile.avatar }}
+                  style={styles.profilePhoto}
+                  fallbackIcon="User"
+                />
+              ) : (
+                <View style={[styles.profilePhoto, styles.profilePhotoPlaceholder]}>
+                  <Icon name="User" size={40} color={theme.colors.mutedForeground} />
+                </View>
+              )}
               <View style={styles.photoActions}>
-                <Button variant="outline" size="sm" style={styles.photoButton}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  style={styles.photoButton}
+                  onPress={handleChangePhoto}
+                >
                   <Icon name="camera" size={16} color={theme.colors.primary} />
                   <Text style={styles.photoButtonText}>Changer la photo</Text>
                 </Button>
-                <Button variant="ghost" size="sm" style={styles.removeButton}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  style={styles.removeButton}
+                  onPress={handleRemovePhoto}
+                  disabled={!profile.avatar}
+                >
                   <Text style={styles.removeButtonText}>Supprimer</Text>
                 </Button>
               </View>
@@ -166,45 +493,78 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
             
             <View style={styles.inputGroup}>
               <Label>Langues parlées</Label>
-              <Input
-                value={profile.languages.join(', ')}
-                onChangeText={(text) => setProfile(prev => ({ 
-                  ...prev, 
-                  languages: text.split(',').map(lang => lang.trim()) 
-                }))}
-                placeholder="Français, Anglais, Espagnol..."
-              />
+              <View style={styles.choiceList}>
+                {availableLanguages.length === 0 ? (
+                  <Text style={styles.emptyChoiceText}>Aucune langue disponible</Text>
+                ) : (
+                  availableLanguages.map((lang) => {
+                    const selected = profile.languages.includes(lang.label);
+                    return (
+                      <TouchableOpacity
+                        key={lang.label}
+                        style={[
+                          styles.choicePill,
+                          selected && styles.choicePillSelected,
+                        ]}
+                        onPress={() => toggleSelection('language', lang.label)}
+                      >
+                        <Text
+                          style={[
+                            styles.choicePillText,
+                            selected && styles.choicePillTextSelected,
+                          ]}
+                        >
+                          {lang.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
+              {profile.languages.length > 0 && (
+                <Text style={styles.selectedChoiceText}>
+                  Sélectionnées : {profile.languages.join(', ')}
+                </Text>
+              )}
             </View>
 
             <View style={styles.inputGroup}>
               <Label>Spécialisations</Label>
-              <Input
-                value={profile.skills.join(', ')}
-                onChangeText={(text) => setProfile(prev => ({ 
-                  ...prev, 
-                  skills: text.split(',').map(skill => skill.trim()) 
-                }))}
-                placeholder="Chiens, Chats, Plantes..."
-              />
+              <View style={styles.choiceList}>
+                {availableSpecialisations.length === 0 ? (
+                  <Text style={styles.emptyChoiceText}>Aucune spécialisation disponible</Text>
+                ) : (
+                  availableSpecialisations.map((spec) => {
+                    const selected = profile.skills.includes(spec.label);
+                    return (
+                      <TouchableOpacity
+                        key={spec.label}
+                        style={[
+                          styles.choicePill,
+                          selected && styles.choicePillSelected,
+                        ]}
+                        onPress={() => toggleSelection('skill', spec.label)}
+                      >
+                        <Text
+                          style={[
+                            styles.choicePillText,
+                            selected && styles.choicePillTextSelected,
+                          ]}
+                        >
+                          {spec.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
+              {profile.skills.length > 0 && (
+                <Text style={styles.selectedChoiceText}>
+                  Sélectionnées : {profile.skills.join(', ')}
+                </Text>
+              )}
             </View>
 
-            <View style={styles.inputGroup}>
-              <Label>Disponibilité</Label>
-              <Input
-                value={profile.availability}
-                onChangeText={(text) => setProfile(prev => ({ ...prev, availability: text }))}
-                placeholder="Weekends, Vacances scolaires..."
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Label>Tarifs</Label>
-              <Input
-                value={profile.priceRange}
-                onChangeText={(text) => setProfile(prev => ({ ...prev, priceRange: text }))}
-                placeholder="20-50€ par jour"
-              />
-            </View>
           </CardContent>
         </Card>
 
@@ -326,27 +686,18 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
           </CardContent>
         </Card>
 
-        {/* Danger Zone */}
-        <Card style={[styles.sectionCard, styles.dangerCard]}>
-          <CardContent style={styles.sectionContent}>
-            <Text style={styles.sectionTitle}>Zone de danger</Text>
-            
-            <TouchableOpacity style={styles.dangerAction}>
-              <Text style={styles.dangerText}>Désactiver temporairement mon compte</Text>
-              <Icon name="chevron-forward" size={20} color="#ef4444" />
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.dangerAction}>
-              <Text style={styles.dangerText}>Supprimer définitivement mon compte</Text>
-              <Icon name="chevron-forward" size={20} color="#ef4444" />
-            </TouchableOpacity>
-          </CardContent>
-        </Card>
-
         {/* Save Button */}
         <View style={styles.saveSection}>
-          <Button onPress={handleSave} style={styles.saveButtonLarge}>
-            <Text style={styles.saveButtonText}>Sauvegarder les modifications</Text>
+          <Button 
+            onPress={handleSave} 
+            style={StyleSheet.flatten([styles.saveButtonLarge, isSaving && styles.saveButtonDisabled])}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <Text style={styles.saveButtonText}>Sauvegarder les modifications</Text>
+            )}
           </Button>
         </View>
       </ScrollView>
@@ -428,9 +779,6 @@ const styles = StyleSheet.create({
     marginHorizontal: theme.spacing.lg,
     marginBottom: theme.spacing.md,
   },
-  dangerCard: {
-    borderColor: '#fecaca',
-  },
   sectionContent: {
     padding: theme.spacing.lg,
   },
@@ -449,6 +797,42 @@ const styles = StyleSheet.create({
   },
   inputGroup: {
     marginBottom: theme.spacing.lg,
+  },
+  choiceList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: theme.spacing.sm,
+  },
+  choicePill: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginRight: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    backgroundColor: theme.colors.background,
+  },
+  choicePillSelected: {
+    borderColor: '#22c55e',
+    backgroundColor: '#dcfce7',
+  },
+  choicePillText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
+  },
+  choicePillTextSelected: {
+    color: '#15803d',
+    fontWeight: theme.fontWeight.medium,
+  },
+  emptyChoiceText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.mutedForeground,
+  },
+  selectedChoiceText: {
+    marginTop: theme.spacing.xs,
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.mutedForeground,
   },
   charCount: {
     fontSize: theme.fontSize.xs,
@@ -477,18 +861,6 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: theme.colors.mutedForeground,
   },
-  dangerAction: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: '#fecaca',
-  },
-  dangerText: {
-    fontSize: theme.fontSize.md,
-    color: '#ef4444',
-  },
   saveSection: {
     padding: theme.spacing.lg,
     paddingBottom: 120, // Space for bottom nav
@@ -499,5 +871,27 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: '#ffffff',
     fontWeight: theme.fontWeight.medium,
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+    paddingVertical: theme.spacing['6xl'],
+  },
+  loadingText: {
+    fontSize: theme.fontSize.base,
+    color: theme.colors.mutedForeground,
+  },
+  spacer: {
+    width: 60, // Same width as back button for centering
+  },
+  profilePhotoPlaceholder: {
+    backgroundColor: theme.colors.muted,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -21,13 +21,15 @@ export interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   accessToken: string | null;
+  isProfileComplete: boolean | null;
   login: () => Promise<void>;
   simulateLogin?: () => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
-  refreshToken: () => Promise<void>;
+  refreshToken: (force?: boolean) => Promise<void>;
   updateUserProfile: (updates: Partial<User>) => Promise<void>;
   updateUserAttribute: (attribute: string, value: any) => Promise<boolean>;
+  markProfileAsComplete: () => void;
 }
 
 export interface AuthProviderProps {

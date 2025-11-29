@@ -11,11 +11,13 @@ interface Listing {
   period: string;
   frequency: string;
   description: string;
-  imageUrl: string;
+  imageUri?: string | null;
   tags: string[];
+  careType?: string;
   isLiked?: boolean;
   rating?: number;
   reviewCount?: number;
+  ownerUsername?: string;
 }
 
 interface ListingsGridProps {

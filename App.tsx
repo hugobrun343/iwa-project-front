@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
@@ -22,81 +22,216 @@ import { EditProfilePage } from './src/screens/profile/EditProfilePage';
 import { AdvancedSettingsPage } from './src/screens/profile/AdvancedSettingsPage';
 import { LanguageSelectorPage } from './src/screens/profile/LanguageSelectorPage';
 import { LoginPage } from './src/screens/auth/LoginPage';
+import { CompleteProfilePage } from './src/screens/profile/CompleteProfilePage';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { theme } from './src/styles/theme';
 import './src/i18n';
 import { useTranslation } from 'react-i18next';
+import { useAnnouncementsApi } from './src/hooks/api/useAnnouncementsApi';
+import { useFavoritesApi } from './src/hooks/api/useFavoritesApi';
+import StripeProviderWrapper from './src/stripe/StripeProviderWrapper';
+import { DateRange } from './src/types/filters';
+import { normalizeImageList } from './src/utils/imageUtils';
 
-const mockListings = [
-  {
-    id: "1",
-    title: "Appartement moderne avec vue - 2 chats adorables",
-    location: "Paris 11ème, 0.8 km",
-    price: 35,
-    period: "5-12 Jan",
-    frequency: "2 fois par jour",
-    description: "Magnifique appartement lumineux avec deux chats très câlins. Arrosage de quelques plantes inclus. Quartier calme et bien desservi.",
-    imageUrl: "https://images.unsplash.com/photo-1594873604892-b599f847e859?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBhcGFydG1lbnQlMjBpbnRlcmlvcnxlbnwxfHx8fDE3NTg2MDQzNTF8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-    tags: ["Animaux", "Plantes"],
-    isLiked: true,
-    rating: 4.9,
-    reviewCount: 15,
-  },
-  {
-    id: "2",
-    title: "Garde de Minou pendant les vacances",
-    location: "Levallois-Perret, 2.1 km",
-    price: 25,
-    period: "15-22 Jan",
-    frequency: "1 fois par jour",
-    description: "Mon chat Minou a besoin d'attention pendant mon absence. Il est très affectueux et facile à vivre. Petit jardin avec quelques plantes.",
-    imageUrl: "https://images.unsplash.com/photo-1619774946815-3e1eeeb445fe?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjdXRlJTIwY2F0JTIwc2xlZXBpbmd8ZW58MXx8fHwxNzU4NjExODIxfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-    tags: ["Animaux", "Week-end"],
-    isLiked: false,
-    rating: 4.7,
-    reviewCount: 8,
-  },
-  {
-    id: "3",
-    title: "Jungle urbaine - Arrosage intensif requis",
-    location: "Belleville, 1.5 km",
-    price: 20,
-    period: "3-10 Fév",
-    frequency: "1 jour sur 2",
-    description: "Appartement rempli de plantes tropicales qui nécessitent des soins particuliers. Instructions détaillées fournies. Aucun animal.",
-    imageUrl: "https://images.unsplash.com/photo-1605260346600-f98d9cf022a5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxob3VzZSUyMHBsYW50cyUyMGluZG9vcnxlbnwxfHx8fDE3NTg2MTE4MjJ8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-    tags: ["Plantes", "Longue durée"],
-    isLiked: true,
-    rating: 4.8,
-    reviewCount: 12,
-  },
-  {
-    id: "4",
-    title: "Golden Retriever énergique - Maison avec jardin",
-    location: "Vincennes, 3.2 km",
-    price: 45,
-    period: "20-25 Jan",
-    frequency: "3 fois par jour",
-    description: "Max est un golden retriever de 3 ans très joueur. Il a besoin de sorties régulières et adore les câlins. Maison avec grand jardin sécurisé.",
-    imageUrl: "https://images.unsplash.com/photo-1687211818108-667d028f1ae4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxnb2xkZW4lMjByZXRyaWV2ZXIlMjBkb2d8ZW58MXx8fHwxNzU4NjExODI4fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-    tags: ["Animaux", "Jardin"],
-    isLiked: true,
-    rating: 4.9,
-    reviewCount: 23,
-  },
-];
+type ListingItem = {
+  title?: string;
+  location?: string;
+  description?: string;
+  careType?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+} & Record<string, any>;
+
+const filterListingsData = (
+  sourceListings: ListingItem[],
+  query: string,
+  careFilters: string[],
+  dateRange?: DateRange
+) => {
+  const normalizedQuery = (query ?? '').trim().toLowerCase();
+  const hasQuery = normalizedQuery.length > 0;
+  const normalizedCareFilters = (careFilters ?? []).map(filter => filter.toLowerCase());
+  const hasCareFilters = normalizedCareFilters.length > 0;
+  const requestStart = dateRange?.start ? new Date(`${dateRange.start}T00:00:00`) : undefined;
+  const requestEnd = dateRange?.end ? new Date(`${dateRange.end}T23:59:59`) : undefined;
+
+  return sourceListings.filter((listing) => {
+    const title = (listing.title ?? '').toLowerCase();
+    const location = (listing.location ?? '').toLowerCase();
+    const description = (listing.description ?? '').toLowerCase();
+
+    const matchesQuery = !hasQuery || title.includes(normalizedQuery) || location.includes(normalizedQuery) || description.includes(normalizedQuery);
+
+    const listingCare = listing.careType ? listing.careType.toLowerCase() : '';
+    const matchesCare = !hasCareFilters || (listingCare ? normalizedCareFilters.includes(listingCare) : false);
+
+    const matchesDates = (() => {
+      if (!requestStart && !requestEnd) {
+        return true;
+      }
+
+      const listingStart = listing.startDate ? new Date(listing.startDate) : undefined;
+      const listingEnd = listing.endDate ? new Date(listing.endDate) : listingStart;
+
+      if (!listingStart) {
+        return false;
+      }
+
+      const effectiveEnd = listingEnd ?? listingStart;
+
+      if (requestStart && requestEnd) {
+        return listingStart <= requestEnd && effectiveEnd >= requestStart;
+      }
+
+      if (requestStart) {
+        return effectiveEnd >= requestStart;
+      }
+
+      if (requestEnd) {
+        return listingStart <= requestEnd;
+      }
+
+      return true;
+    })();
+
+    return matchesQuery && matchesCare && matchesDates;
+  });
+};
 
 // Main App Component with Authentication
 function MainApp() {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user, accessToken, isProfileComplete, markProfileAsComplete } = useAuth();
   const { t } = useTranslation();
   const enableSimulatedLogin = process.env.EXPO_PUBLIC_ENABLE_SIMULATED_LOGIN === 'true';
   const [activeTab, setActiveTab] = useState("home");
   const [currentPage, setCurrentPage] = useState("home");
   const [selectedListing, setSelectedListing] = useState(null);
-  const [listings, setListings] = useState(mockListings);
-  const [filteredListings, setFilteredListings] = useState(mockListings);
+  const [editingListingId, setEditingListingId] = useState<string | null>(null);
+  const [selectedDiscussionId, setSelectedDiscussionId] = useState<number | undefined>(undefined);
+  const [listings, setListings] = useState([]);
+  const [filteredListings, setFilteredListings] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeCareFilters, setActiveCareFilters] = useState<string[]>([]);
+  const [activeDateRange, setActiveDateRange] = useState<DateRange | undefined>(undefined);
   const [navigationStack, setNavigationStack] = useState(["home"]); // Stack pour navigation hiérarchique
+  const [isLoadingListings, setIsLoadingListings] = useState(true);
+  const announcementsFetchInFlightRef = useRef(false);
+  const lastAnnouncementsFetchRef = useRef(0);
+  const lastAnnouncementsTokenRef = useRef<string | null>(null);
+  const searchQueryRef = useRef('');
+  const careFiltersRef = useRef<string[]>([]);
+  const dateRangeRef = useRef<DateRange | undefined>(undefined);
+
+  const recomputeFilteredListings = React.useCallback(
+    ({
+      listings: sourceListings,
+      query,
+      careFilters,
+      dateRange,
+    }: {
+      listings?: ListingItem[];
+      query?: string;
+      careFilters?: string[];
+      dateRange?: DateRange;
+    } = {}) => {
+      const finalListings = sourceListings ?? listings;
+      const finalQuery = query ?? searchQueryRef.current;
+      const finalCareFilters = careFilters ?? careFiltersRef.current;
+      const finalDateRange = dateRange ?? dateRangeRef.current;
+      setFilteredListings(
+        filterListingsData(finalListings, finalQuery, finalCareFilters, finalDateRange)
+      );
+    },
+    [listings]
+  );
+
+  const { listAnnouncements } = useAnnouncementsApi();
+  const { getFavorites, checkFavorite, addFavorite, removeFavorite } = useFavoritesApi();
+
+  // Load announcements on mount
+  React.useEffect(() => {
+    if (!isAuthenticated || !accessToken) return;
+
+    const now = Date.now();
+    const sameToken = lastAnnouncementsTokenRef.current === accessToken;
+    const withinCooldown = sameToken && now - lastAnnouncementsFetchRef.current < 60000;
+
+    if (announcementsFetchInFlightRef.current || withinCooldown) {
+      return;
+    }
+
+    let cancelled = false;
+    announcementsFetchInFlightRef.current = true;
+    lastAnnouncementsTokenRef.current = accessToken;
+
+    const loadAnnouncements = async () => {
+      try {
+        setIsLoadingListings(true);
+        const announcements = await listAnnouncements({ status: 'PUBLISHED' });
+
+        if (!announcements || cancelled) {
+          return;
+        }
+
+        const formattedListings = await Promise.all(
+          announcements.map(async (ann) => {
+            let isFavorite = false;
+            if (user?.username) {
+              const favCheck = await checkFavorite(ann.id);
+              isFavorite = favCheck ? favCheck.isFavorite : false;
+            }
+
+            const careType = ann.careType?.label ?? ann.careTypeLabel ?? '';
+            const publicImageUris = normalizeImageList(ann.publicImages);
+            const fallbackImage = "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba";
+            const displayImages = publicImageUris.length > 0 ? publicImageUris : [fallbackImage];
+            return {
+              id: String(ann.id),
+              title: ann.title,
+              location: ann.location,
+              price: ann.remuneration || 0,
+              period: ann.startDate && ann.endDate ? `${new Date(ann.startDate).toLocaleDateString('fr-FR')} - ${new Date(ann.endDate).toLocaleDateString('fr-FR')}` : '',
+              frequency: ann.visitFrequency || "À discuter",
+              description: ann.description,
+              imageUri: displayImages[0],
+              publicImages: displayImages,
+              tags: careType ? [careType] : [],
+              careType: careType,
+              isLiked: isFavorite,
+              reviewCount: 0,
+              ownerUsername: ann.ownerUsername || '',
+              startDate: ann.startDate || null,
+              endDate: ann.endDate || null,
+            };
+          })
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        setListings(formattedListings);
+        recomputeFilteredListings({ listings: formattedListings });
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Error loading announcements:', error);
+        }
+      } finally {
+        if (!cancelled) {
+          announcementsFetchInFlightRef.current = false;
+          lastAnnouncementsFetchRef.current = Date.now();
+          setIsLoadingListings(false);
+        }
+      }
+    };
+
+    loadAnnouncements();
+
+    return () => {
+      cancelled = true;
+      announcementsFetchInFlightRef.current = false;
+    };
+  }, [isAuthenticated, accessToken, listAnnouncements, user?.username, checkFavorite, recomputeFilteredListings]);
 
   // Show loading screen while checking authentication
   if (isLoading) {
@@ -121,36 +256,64 @@ function MainApp() {
     );
   }
 
-  const toggleLike = (id: string) => {
-    const updatedListings = listings.map(listing => 
-      listing.id === id 
-        ? { ...listing, isLiked: !listing.isLiked }
-        : listing
+  // Show profile completion page if profile is not complete
+  if (isAuthenticated && isProfileComplete === false) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style="dark" backgroundColor="#ffffff" />
+        <CompleteProfilePage 
+          onComplete={() => {
+            markProfileAsComplete();
+          }} 
+        />
+      </SafeAreaProvider>
     );
-    setListings(updatedListings);
-    setFilteredListings(updatedListings);
+  }
+
+  const toggleLike = async (id: string) => {
+    try {
+      const listing = listings.find(l => l.id === id);
+      if (!listing) return;
+
+      const announcementId = Number(id);
+      
+      if (listing.isLiked) {
+        // Remove from favorites
+        await removeFavorite(announcementId);
+      } else {
+        // Add to favorites
+        await addFavorite({ announcementId });
+      }
+
+      // Update local state
+      const updatedListings = listings.map(l => 
+        l.id === id 
+          ? { ...l, isLiked: !l.isLiked }
+          : l
+      );
+      setListings(updatedListings);
+      recomputeFilteredListings({ listings: updatedListings });
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+    }
   };
 
   const handleSearch = (query: string) => {
-    const filtered = listings.filter(listing => 
-      listing.title.toLowerCase().includes(query.toLowerCase()) ||
-      listing.location.toLowerCase().includes(query.toLowerCase()) ||
-      listing.description.toLowerCase().includes(query.toLowerCase())
-    );
-    setFilteredListings(filtered);
+    setSearchQuery(query);
+    searchQueryRef.current = query;
+    recomputeFilteredListings({ query });
   };
 
   const handleFilterChange = (filters: string[]) => {
-    if (filters.length === 0) {
-      setFilteredListings(listings);
-    } else {
-      const filtered = listings.filter(listing => 
-        filters.some(filter => 
-          listing.tags.some(tag => tag.toLowerCase().includes(filter.toLowerCase()))
-        )
-      );
-      setFilteredListings(filtered);
-    }
+    setActiveCareFilters(filters);
+    careFiltersRef.current = filters;
+    recomputeFilteredListings({ careFilters: filters });
+  };
+
+  const handleDateRangeChange = (range?: DateRange) => {
+    setActiveDateRange(range);
+    dateRangeRef.current = range;
+    recomputeFilteredListings({ dateRange: range });
   };
 
   const handleNavigate = (page: string, data?: any) => {
@@ -180,6 +343,14 @@ function MainApp() {
       return newStack;
     });
     setSelectedListing(null);
+    setSelectedDiscussionId(undefined);
+  };
+
+  const handleBackToSearch = () => {
+    setActiveTab("home");
+    setCurrentPage("home");
+    setSelectedListing(null);
+    setSelectedDiscussionId(undefined);
   };
 
   const renderCurrentPage = () => {
@@ -188,8 +359,11 @@ function MainApp() {
         return selectedListing ? (
           <ListingDetailPage
             listing={selectedListing}
-            onBack={handleBack}
-            onMessage={() => handleNavigate("messages")}
+            onBack={handleBackToSearch}
+            onMessage={(discussionId) => {
+              setSelectedDiscussionId(discussionId);
+              handleNavigate("messages");
+            }}
           />
         ) : null;
       
@@ -203,7 +377,7 @@ function MainApp() {
       case "favorites":
         return (
           <FavoritesPage
-            onBack={handleBack}
+            onBack={handleBackToSearch}
             allListings={listings}
             onLikeToggle={toggleLike}
             onListingClick={(listing) => handleNavigate("listing-detail", listing)}
@@ -213,14 +387,19 @@ function MainApp() {
       case "messages":
         return (
           <MessagesPage
-            onBack={handleBack}
+            initialDiscussionId={selectedDiscussionId}
+            onListingClick={(listing) => handleNavigate("listing-detail", listing)}
           />
         );
       
       case "create":
         return (
           <CreateListingPage
-            onBack={handleBack}
+            onBack={() => {
+              setEditingListingId(null);
+            }}
+            listingId={editingListingId || undefined}
+            showBackButton={Boolean(editingListingId)}
           />
         );
       
@@ -228,7 +407,14 @@ function MainApp() {
         return (
           <MyListingsPage
             onBack={handleBack}
-            onCreateListing={() => handleNavigate("create")}
+            onCreateListing={() => {
+              setEditingListingId(null);
+              handleNavigate("create");
+            }}
+            onEditListing={(listingId) => {
+              setEditingListingId(listingId);
+              handleNavigate("create");
+            }}
           />
         );
       
@@ -288,6 +474,10 @@ function MainApp() {
             listings={filteredListings}
             onSearch={handleSearch}
             onFilterChange={handleFilterChange}
+            onDateRangeChange={handleDateRangeChange}
+            initialFilters={activeCareFilters}
+            initialDateRange={activeDateRange}
+            initialSearchQuery={searchQuery}
             onListingClick={(listing) => handleNavigate("listing-detail", listing)}
             onLikeToggle={toggleLike}
           />
@@ -366,11 +556,13 @@ function MainApp() {
   );
 }
 
-// Root App Component with AuthProvider
+// Root App Component with AuthProvider and StripeProvider
 export default function App() {
   return (
     <AuthProvider>
-      <MainApp />
+      <StripeProviderWrapper>
+        <MainApp />
+      </StripeProviderWrapper>
     </AuthProvider>
   );
 }

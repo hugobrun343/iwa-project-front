@@ -5,7 +5,8 @@ import {
     AnnouncementFilters,
     AnnouncementPayload,
     AnnouncementResponseDto,
-    AnnouncementStatus
+    AnnouncementStatus,
+    CareTypeDto
 } from '../../types/api';
 import { QueryParamValue } from '../../services/apiClient';
 
@@ -103,6 +104,14 @@ export const useAnnouncementsApi = () => {
     [execute, request],
   );
 
+  const listCareTypes = useCallback(
+    () =>
+      execute(() =>
+        request<CareTypeDto[]>(`/api/announcements/care-types`),
+      ),
+    [execute, request],
+  );
+
   return {
     isLoading,
     error,
@@ -115,6 +124,7 @@ export const useAnnouncementsApi = () => {
     listAnnouncements,
     listAnnouncementsByOwner,
     listAnnouncementsByStatus,
+    listCareTypes,
   };
 };
 

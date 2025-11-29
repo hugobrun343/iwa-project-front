@@ -9,8 +9,16 @@ import {
 import { QueryParamValue } from '../../services/apiClient';
 
 const toQueryRecord = (filters?: ApplicationFilters): Record<string, QueryParamValue> | undefined => {
-    if (!filters) return undefined;
-}
+  if (!filters) return undefined;
+
+  return Object.entries(filters).reduce<Record<string, QueryParamValue>>((acc, [key, value]) => {
+    if (value === undefined || value === null) {
+      return acc;
+    }
+    acc[key] = value as QueryParamValue;
+    return acc;
+  }, {});
+};
 
 interface UpdateStatusBody {
   status: ApplicationPayload['status'];

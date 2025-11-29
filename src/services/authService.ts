@@ -82,7 +82,7 @@ export class AuthService {
         throw new Error('Discovery document incomplete (missing authorization/token endpoints)');
       }
 
-  AuthService.lastIssuer = (discovery as any).issuer || issuerBase;
+      AuthService.lastIssuer = (discovery as any).issuer || issuerBase;
 
       const extraParams: Record<string,string> = {};
       if (useGoogle) {
@@ -223,14 +223,25 @@ export class AuthService {
       return this.mapUserInfoFromToken(token);
     }
   }
-  static async refreshAccessToken(refreshToken: string): Promise<any> {
+  static async refreshAccessToken(refreshToken: string, silent = false): Promise<any> {
     try {
-      const tokenUrl = `${KEYCLOAK_CONFIG.url}/realms/${KEYCLOAK_CONFIG.realm}/protocol/openid-connect/token`;
+      // Prefer dynamic issuer captured from redirect to avoid mismatches
+      const tokenUrl = AuthService.lastIssuer 
+        ? `${AuthService.lastIssuer}/protocol/openid-connect/token`
+        : `${KEYCLOAK_CONFIG.url}/realms/${KEYCLOAK_CONFIG.realm}/protocol/openid-connect/token`;
       const refreshParams = new URLSearchParams({
         grant_type: 'refresh_token',
         client_id: KEYCLOAK_CONFIG.clientId,
         refresh_token: refreshToken,
+        redirect_uri: KEYCLOAK_CONFIG.redirectUri,
       });
+
+      // Optional client secret (if client is confidential)
+      const clientSecret = process.env.EXPO_PUBLIC_KEYCLOAK_CLIENT_SECRET;
+      if (clientSecret) {
+        refreshParams.append('client_secret', clientSecret);
+      }
+
       const body = refreshParams.toString();
       console.log('� Refresh token request body (truncated):', body.slice(0,140));
       const response = await fetch(tokenUrl, {
@@ -243,12 +254,92 @@ export class AuthService {
       });
       const text = await response.text();
       if (!response.ok) {
-        console.error('❌ Token refresh failed', { status: response.status, body: text });
-        throw new Error(`Token refresh failed: ${response.status} :: ${text}`);
+        // Try to parse error details
+        let errorData: any = null;
+        try {
+          errorData = JSON.parse(text);
+        } catch {}
+        
+        const errorCode = errorData?.error || '';
+        const errorDescription = errorData?.error_description || '';
+        const errorMsg = errorDescription || errorCode || text;
+        
+        // Only log errors if not in silent mode or if it's not an expected invalid_grant error
+        const isInvalidGrant = errorCode === 'invalid_grant' || 
+                              errorDescription.toLowerCase().includes('invalid token issuer') ||
+                              errorDescription.toLowerCase().includes('invalid grant');
+        
+        if (!silent || !isInvalidGrant) {
+          console.error('❌ Token refresh failed', { 
+            status: response.status, 
+            statusText: response.statusText,
+            body: text,
+            requestDetails: {
+              tokenUrl,
+              client_id: KEYCLOAK_CONFIG.clientId,
+              redirect_uri: KEYCLOAK_CONFIG.redirectUri,
+              has_client_secret: !!clientSecret,
+              using_dynamic_issuer: !!AuthService.lastIssuer,
+            }
+          });
+        }
+        
+        // If we get "invalid_client" or "invalid_client_credentials" and we included client_secret,
+        // the client might be public - retry without client_secret
+        if (
+          (errorCode === 'invalid_client' || errorCode === 'invalid_client_credentials' || 
+           errorDescription.toLowerCase().includes('invalid client')) &&
+          clientSecret
+        ) {
+          if (!silent) {
+            console.log('⚠️ Token refresh failed with client_secret, retrying without it (client might be public)...');
+          }
+          
+          // Retry without client_secret
+          const retryParams = new URLSearchParams({
+            grant_type: 'refresh_token',
+            client_id: KEYCLOAK_CONFIG.clientId,
+            refresh_token: refreshToken,
+            redirect_uri: KEYCLOAK_CONFIG.redirectUri,
+          });
+          
+          const retryBody = retryParams.toString();
+          const retryResponse = await fetch(tokenUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
+              'Accept': 'application/json'
+            },
+            body: retryBody
+          });
+          
+          const retryText = await retryResponse.text();
+          if (retryResponse.ok) {
+            if (!silent) {
+              console.log('✅ Token refresh succeeded without client_secret (public client)');
+            }
+            try { 
+              return JSON.parse(retryText); 
+            } catch { 
+              return retryText; 
+            }
+          } else {
+            if (!silent) {
+              console.error('❌ Token refresh retry also failed', { 
+                status: retryResponse.status, 
+                body: retryText 
+              });
+            }
+          }
+        }
+        
+        throw new Error(`Token refresh failed: ${response.status} ${response.statusText} - ${errorMsg}`);
       }
       try { return JSON.parse(text); } catch { return text; }
     } catch (error) {
-      console.error('Token refresh error:', error);
+      if (!silent) {
+        console.error('Token refresh error:', error);
+      }
       throw error;
     }
   }

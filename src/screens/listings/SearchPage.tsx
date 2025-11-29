@@ -4,10 +4,16 @@ import { SearchHeader } from '../../components/layout/SearchHeader';
 import { ListingsGrid } from '../../components/listing/ListingsGrid';
 import { theme } from '../../styles/theme';
 
+import { DateRange } from '../../types/filters';
+
 interface SearchPageProps {
   listings: any[];
   onSearch: (query: string) => void;
   onFilterChange: (filters: string[]) => void;
+  onDateRangeChange?: (range?: DateRange) => void;
+  initialFilters?: string[];
+  initialDateRange?: DateRange;
+  initialSearchQuery?: string;
   onListingClick: (listing: any) => void;
   onLikeToggle: (listingId: string) => void;
 }
@@ -16,6 +22,10 @@ export function SearchPage({
   listings, 
   onSearch, 
   onFilterChange, 
+  onDateRangeChange,
+  initialFilters,
+  initialDateRange,
+  initialSearchQuery,
   onListingClick, 
   onLikeToggle 
 }: SearchPageProps) {
@@ -25,6 +35,10 @@ export function SearchPage({
       <SearchHeader 
         onSearch={onSearch}
         onFilterChange={onFilterChange}
+        onDateRangeChange={onDateRangeChange}
+        initialFilters={initialFilters}
+        initialDateRange={initialDateRange}
+        initialSearchQuery={initialSearchQuery}
       />
 
       {/* Content */}

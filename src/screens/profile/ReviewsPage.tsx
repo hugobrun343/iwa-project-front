@@ -1,99 +1,194 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
-import { Badge } from '../../components/ui/Badge';
 import { Icon } from '../../components/ui/Icon';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { ImageWithFallback } from '../../components/ui/ImageWithFallback';
 import { theme } from '../../styles/theme';
+import { useAuth } from '../../contexts/AuthContext';
+import { useRatingsApi } from '../../hooks/api/useRatingsApi';
+import { useUserApi } from '../../hooks/api/useUserApi';
+import { PublicUserDto, RatingDto } from '../../types/api';
 
 interface ReviewsPageProps {
   onBack: () => void;
 }
 
-export function ReviewsPage({ onBack }: ReviewsPageProps) {
-  const [activeTab, setActiveTab] = useState("received");
+type ApiRating = RatingDto & { note?: number; commentaire?: string; dateAvis?: string };
+type ReceivedReview = RatingDto & { author?: PublicUserDto; commentaire?: string; dateAvis?: string; note?: number };
+type GivenReview = RatingDto & { recipient?: PublicUserDto; commentaire?: string; dateAvis?: string; note?: number };
 
-  const reviewsData = {
-    received: [
-      {
-        id: "1",
-        reviewer: "Marie Dubois",
-        reviewerAvatar: "https://images.unsplash.com/photo-1494790108755-2616b612b65c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
-        rating: 5,
-        date: "12 Jan 2024",
-        listing: "Appartement moderne avec vue - 2 chats adorables",
-        comment: "Sophie a pris un soin exceptionnel de mes chats ! Ils étaient très heureux et détendus à mon retour. Elle a suivi toutes mes instructions à la lettre et m'a envoyé des photos régulièrement. Je la recommande vivement !",
-        verified: true
-      },
-      {
-        id: "2",
-        reviewer: "Thomas Martin",
-        reviewerAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
-        rating: 5,
-        date: "25 Déc 2023",
-        listing: "Golden Retriever énergique - Maison avec jardin",
-        comment: "Max était en excellentes mains avec Sophie. Elle a parfaitement géré son énergie et ses besoins de sorties. Merci Sophie !",
-        verified: true
-      },
-      {
-        id: "3",
-        reviewer: "Camille Leroy",
-        reviewerAvatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
-        rating: 4,
-        date: "10 Nov 2023",
-        listing: "Jungle urbaine - Arrosage intensif requis",
-        comment: "Bon travail sur les plantes, la plupart étaient en bonne santé à mon retour. Quelques petites améliorations possibles sur l'arrosage des plantes tropicales.",
-        verified: true
-      }
-    ],
-    given: [
-      {
-        id: "4",
-        reviewee: "Laura Silva",
-        revieweeAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
-        rating: 5,
-        date: "15 Jan 2024",
-        listing: "Mon appartement avec plantes",
-        comment: "Laura était une propriétaire parfaite ! Très accueillante, instructions claires, appartement impeccable. Les plantes et poissons étaient en excellent état.",
-        myRole: "gardienne"
-      },
-      {
-        id: "5",
-        reviewee: "Pierre Bonnet",
-        revieweeAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
-        rating: 4,
-        date: "8 Déc 2023",
-        listing: "Garde de Minou",
-        comment: "Propriétaire sympa, chat adorable ! Petit souci avec les clés au début mais tout s'est bien passé ensuite.",
-        myRole: "gardienne"
-      }
-    ]
+export function ReviewsPage({ onBack }: ReviewsPageProps) {
+  const [activeTab, setActiveTab] = useState<'received' | 'given'>('received');
+  const [receivedReviews, setReceivedReviews] = useState<ReceivedReview[]>([]);
+  const [givenReviews, setGivenReviews] = useState<GivenReview[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const { user } = useAuth();
+  const { getRatingsReceived, getRatingsGiven } = useRatingsApi();
+  const { getUserByUsername } = useUserApi();
+
+  const tabs = [
+    { id: 'received' as const, label: 'Reçus' },
+    { id: 'given' as const, label: 'Donnés' },
+  ];
+
+  const normalizeRating = (rating: ApiRating): RatingDto => ({
+    ...rating,
+    score: rating.score ?? rating.note ?? 0,
+    comment: rating.comment ?? rating.commentaire ?? '',
+    createdAt: rating.createdAt ?? rating.dateAvis ?? '',
+    updatedAt: rating.updatedAt ?? rating.dateAvis ?? '',
+  });
+
+  const formatReviewDate = (date?: string) => {
+    if (!date) {
+      return 'Date inconnue';
+    }
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) {
+      return 'Date inconnue';
+    }
+    return parsed.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
   };
 
-  const ReceivedReviewCard = ({ review }: { review: any }) => (
+  const getDisplayName = (profile?: PublicUserDto, fallback?: string) => {
+    if (!profile) {
+      return fallback ?? 'Utilisateur';
+    }
+    const fullName = `${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim();
+    return fullName || profile.username || fallback || 'Utilisateur';
+  };
+
+  const renderAvatar = (photoUrl?: string) => {
+    if (photoUrl) {
+      return (
+        <ImageWithFallback
+          source={{ uri: photoUrl }}
+          style={styles.avatar}
+          fallbackIcon="User"
+        />
+      );
+    }
+
+    return (
+      <View style={[styles.avatar, styles.avatarFallback]}>
+        <Icon name="User" size={24} color={theme.colors.mutedForeground} />
+      </View>
+    );
+  };
+
+  useEffect(() => {
+    if (!user?.username) {
+      return;
+    }
+
+    const enrichWithUsers = async (
+      ratings: ApiRating[],
+      type: 'author' | 'recipient',
+    ): Promise<ReceivedReview[] | GivenReview[]> => {
+      if (ratings.length === 0) {
+        return type === 'author'
+          ? ([] as ReceivedReview[])
+          : ([] as GivenReview[]);
+      }
+
+      const key = type === 'author' ? 'authorId' : 'recipientId';
+      const uniqueIds = Array.from(new Set(ratings.map((rating) => rating[key]).filter(Boolean)));
+      const userMap = new Map<string, PublicUserDto>();
+
+      await Promise.all(
+        uniqueIds.map(async (id) => {
+          try {
+            const profile = await getUserByUsername(id);
+            if (profile) {
+              userMap.set(id, profile);
+            }
+          } catch (fetchError) {
+            console.warn('Impossible de récupérer le profil utilisateur', id, fetchError);
+          }
+        }),
+      );
+
+      if (type === 'author') {
+        return ratings.map((rating) => ({
+          ...normalizeRating(rating),
+          note: rating.note,
+          commentaire: rating.commentaire,
+          dateAvis: rating.dateAvis,
+          author: userMap.get(rating.authorId),
+        })) as ReceivedReview[];
+      }
+
+      return ratings.map((rating) => ({
+        ...normalizeRating(rating),
+        note: rating.note,
+        commentaire: rating.commentaire,
+        dateAvis: rating.dateAvis,
+        recipient: userMap.get(rating.recipientId),
+      })) as GivenReview[];
+    };
+
+    const fetchReviews = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const [receivedResponse, givenResponse] = await Promise.all([
+          getRatingsReceived(user.username, { limit: 20, page: 0 }),
+          getRatingsGiven(user.username, { limit: 20, page: 0 }),
+        ]);
+
+        const receivedContent = receivedResponse?.content ?? [];
+        const givenContent = givenResponse?.content ?? [];
+
+        const [receivedEnriched, givenEnriched] = await Promise.all([
+          enrichWithUsers(receivedContent, 'author'),
+          enrichWithUsers(givenContent, 'recipient'),
+        ]);
+
+        setReceivedReviews(receivedEnriched as ReceivedReview[]);
+        setGivenReviews(givenEnriched as GivenReview[]);
+      } catch (fetchError) {
+        console.error('Erreur lors du chargement des avis:', fetchError);
+        setError("Impossible de charger les avis. Veuillez réessayer plus tard.");
+        setReceivedReviews([]);
+        setGivenReviews([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchReviews();
+  }, [user?.username, getRatingsReceived, getRatingsGiven, getUserByUsername]);
+
+  const averageRating = useMemo(() => {
+    if (receivedReviews.length === 0) {
+      return '0.0';
+    }
+    const sum = receivedReviews.reduce((total, review) => total + (review.score ?? review.note ?? 0), 0);
+    return (sum / receivedReviews.length).toFixed(1);
+  }, [receivedReviews]);
+
+  const ReceivedReviewCard = ({ review }: { review: ReceivedReview }) => (
     <Card style={styles.card}>
       <CardContent style={styles.cardContent}>
         <View style={styles.reviewHeader}>
           <View style={styles.reviewerInfo}>
-            <ImageWithFallback
-              src={review.reviewerAvatar}
-              style={styles.avatar}
-              alt={review.reviewer}
-            />
+            {renderAvatar(review.author?.profilePhoto)}
             <View style={styles.reviewerDetails}>
-              <View style={styles.nameRow}>
-                <Text style={styles.reviewerName}>{review.reviewer}</Text>
-                {review.verified && (
-                  <Badge variant="outline" style={styles.verifiedBadge}>
-                    <Icon name="checkmark-circle" size={12} color="#22c55e" />
-                    <Text style={styles.verifiedText}>Vérifié</Text>
-                  </Badge>
-                )}
-              </View>
-              <Text style={styles.reviewDate}>{review.date}</Text>
+              <Text style={styles.reviewerName}>
+                {getDisplayName(review.author, review.authorId)}
+              </Text>
+              <Text style={styles.reviewDate}>
+                Reçu le {formatReviewDate(review.createdAt || review.dateAvis)}
+              </Text>
             </View>
           </View>
           <View style={styles.ratingContainer}>
@@ -103,57 +198,35 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
                   key={i} 
                   name="star" 
                   size={16} 
-                  color={i < review.rating ? "#fbbf24" : "#d1d5db"}
+                  color={i < (review.score ?? 0) ? "#fbbf24" : "#d1d5db"}
                 />
               ))}
             </View>
           </View>
         </View>
 
-        <View style={styles.listingInfo}>
-          <Text style={styles.listingTitle}>{review.listing}</Text>
-        </View>
-
-        <Text style={styles.reviewComment}>{review.comment}</Text>
-
-        <View style={styles.reviewActions}>
-          <Button variant="ghost" size="sm" style={styles.actionButton}>
-            <Icon name="chatbubble" size={16} color={theme.colors.primary} />
-            <Text style={styles.actionText}>Répondre</Text>
-          </Button>
-          <Button variant="ghost" size="sm" style={styles.actionButton}>
-            <Icon name="share" size={16} color={theme.colors.primary} />
-            <Text style={styles.actionText}>Partager</Text>
-          </Button>
-        </View>
+        <Text style={styles.reviewComment}>
+          {review.comment || review.commentaire || "Aucun commentaire fourni."}
+        </Text>
       </CardContent>
     </Card>
   );
 
-  const GivenReviewCard = ({ review }: { review: any }) => (
+  const GivenReviewCard = ({ review }: { review: GivenReview }) => (
     <Card style={styles.card}>
       <CardContent style={styles.cardContent}>
         <View style={styles.reviewHeader}>
           <View style={styles.reviewerInfo}>
-            <ImageWithFallback
-              src={review.revieweeAvatar}
-              style={styles.avatar}
-              alt={review.reviewee}
-            />
+            {renderAvatar(review.recipient?.profilePhoto)}
             <View style={styles.reviewerDetails}>
-              <Text style={styles.reviewerName}>{review.reviewee}</Text>
-              <Text style={styles.reviewDate}>{review.date}</Text>
+              <Text style={styles.reviewerName}>
+                {getDisplayName(review.recipient, review.recipientId)}
+              </Text>
+              <Text style={styles.reviewDate}>
+                Donné le {formatReviewDate(review.createdAt || review.dateAvis)}
+              </Text>
             </View>
           </View>
-          <View style={styles.ratingContainer}>
-            <Badge variant="outline" style={styles.roleBadge}>
-              <Text style={styles.roleText}>Vous étiez {review.myRole}</Text>
-            </Badge>
-          </View>
-        </View>
-
-        <View style={styles.listingInfo}>
-          <Text style={styles.listingTitle}>{review.listing}</Text>
         </View>
 
         <View style={styles.givenRating}>
@@ -164,13 +237,15 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
                 key={i} 
                 name="star" 
                 size={16} 
-                color={i < review.rating ? "#fbbf24" : "#d1d5db"}
+                color={i < (review.score ?? review.note ?? 0) ? "#fbbf24" : "#d1d5db"}
               />
             ))}
           </View>
         </View>
 
-        <Text style={styles.reviewComment}>{review.comment}</Text>
+        <Text style={styles.reviewComment}>
+          {review.comment || review.commentaire || "Aucun commentaire ajouté."}
+        </Text>
 
         <View style={styles.reviewActions}>
           <Button variant="ghost" size="sm" style={styles.actionButton}>
@@ -183,16 +258,36 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
   );
 
   const renderTabContent = () => {
+    if (isLoading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Chargement des avis…</Text>
+        </View>
+      );
+    }
+
+    if (error) {
+      return (
+        <Card style={styles.emptyCard}>
+          <CardContent style={styles.emptyContent}>
+            <Icon name="help-circle" size={48} color={theme.colors.destructive} />
+            <Text style={styles.emptyTitle}>Impossible de charger les avis</Text>
+            <Text style={styles.emptyText}>{error}</Text>
+          </CardContent>
+        </Card>
+      );
+    }
+
     switch (activeTab) {
-      case "received":
-        return reviewsData.received.length > 0 ? (
-          reviewsData.received.map((review) => (
+      case 'received':
+        return receivedReviews.length > 0 ? (
+          receivedReviews.map((review) => (
             <ReceivedReviewCard key={review.id} review={review} />
           ))
         ) : (
           <Card style={styles.emptyCard}>
             <CardContent style={styles.emptyContent}>
-              <Icon name="star" size={48} color={theme.colors.mutedForeground} />
+              <Icon name="Star" size={48} color={theme.colors.mutedForeground} />
               <Text style={styles.emptyTitle}>Aucun avis reçu</Text>
               <Text style={styles.emptyText}>
                 Les avis de vos clients apparaîtront ici après vos premières gardes.
@@ -200,10 +295,9 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
             </CardContent>
           </Card>
         );
-
-      case "given":
-        return reviewsData.given.length > 0 ? (
-          reviewsData.given.map((review) => (
+      case 'given':
+        return givenReviews.length > 0 ? (
+          givenReviews.map((review) => (
             <GivenReviewCard key={review.id} review={review} />
           ))
         ) : (
@@ -217,7 +311,6 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
             </CardContent>
           </Card>
         );
-
       default:
         return null;
     }
@@ -239,16 +332,16 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
             <View style={styles.statsGrid}>
               <View style={styles.statItem}>
                 <Text style={styles.statNumber}>
-                  {(reviewsData.received.reduce((sum, review) => sum + review.rating, 0) / reviewsData.received.length).toFixed(1)}
+                  {isLoading ? '--' : averageRating}
                 </Text>
                 <Text style={styles.statLabel}>Note moyenne</Text>
               </View>
               <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{reviewsData.received.length}</Text>
+                <Text style={styles.statNumber}>{isLoading ? '--' : receivedReviews.length}</Text>
                 <Text style={styles.statLabel}>Avis reçus</Text>
               </View>
               <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{reviewsData.given.length}</Text>
+                <Text style={styles.statNumber}>{isLoading ? '--' : givenReviews.length}</Text>
                 <Text style={styles.statLabel}>Avis donnés</Text>
               </View>
             </View>
@@ -258,10 +351,7 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
         {/* Tabs */}
         <View style={styles.tabsContainer}>
           <View style={styles.tabsList}>
-            {[
-              { id: "received", label: "Reçus" },
-              { id: "given", label: "Donnés" }
-            ].map((tab) => (
+            {tabs.map((tab) => (
               <TouchableOpacity
                 key={tab.id}
                 style={[
@@ -381,6 +471,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     paddingBottom: 120, // Space for bottom nav
   },
+  loadingContainer: {
+    paddingVertical: theme.spacing.xl,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
+  },
   card: {
     marginBottom: theme.spacing.lg,
   },
@@ -403,6 +501,11 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
+  },
+  avatarFallback: {
+    backgroundColor: theme.colors.muted,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   reviewerDetails: {
     flex: 1,

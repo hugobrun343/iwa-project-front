@@ -1,3 +1,13 @@
+export interface UserLanguageDto {
+  language: string;
+  label?: string; // Keep for backward compatibility
+}
+
+export interface UserSpecialisationDto {
+  specialisation: string;
+  label?: string; // Keep for backward compatibility
+}
+
 export interface PrivateUserDto {
   username: string;
   email?: string;
@@ -7,9 +17,11 @@ export interface PrivateUserDto {
   location?: string;
   description?: string;
   profilePhoto?: string;
-  identityVerification?: string;
-  preferences?: Record<string, unknown>;
+  identityVerification?: boolean;
+  preferences?: string;
   registrationDate?: string;
+  languages?: UserLanguageDto[];
+  specialisations?: UserSpecialisationDto[];
 }
 
 export interface PublicUserDto {
@@ -19,11 +31,11 @@ export interface PublicUserDto {
   location?: string;
   description?: string;
   profilePhoto?: string;
-  identityVerification?: string;
+  identityVerification?: boolean;
   registrationDate?: string;
 }
 
-export type CreateUserPayload = Omit<PrivateUserDto, 'username' | 'registrationDate'>;
+export type CreateUserPayload = Omit<PrivateUserDto, 'username' | 'registrationDate' | 'languages' | 'specialisations'>;
 
 export interface UserExistsResponse {
   username: string;
@@ -39,31 +51,51 @@ export interface LabelDto {
   label: string;
 }
 
-export interface AnnouncementPayload {
-  title: string;
-  description: string;
-  requestDate: string;
-  hourlyRate: number;
-  location: string;
-  images?: string[];
-  specialisations?: string[];
-  status?: 'PENDING' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
+export interface CareTypeDto {
+  id: number;
+  label: string;
 }
 
-export interface AnnouncementResponseDto extends AnnouncementPayload {
+export interface ImageDto {
+  id?: number;
+  imageUrl?: string;
+  imageBlob?: string;
+  contentType?: string;
+}
+
+export interface AnnouncementPayload {
+  ownerUsername: string;
+  title: string;
+  location: string;
+  description: string;
+  specificInstructions?: string;
+  careTypeLabel: string;
+  startDate: string;
+  endDate?: string;
+  visitFrequency?: string;
+  remuneration: number;
+  identityVerificationRequired?: boolean;
+  urgentRequest?: boolean;
+  status?: AnnouncementStatus;
+  publicImages?: ImageDto[];
+  specificImages?: ImageDto[];
+}
+
+export interface AnnouncementResponseDto extends Omit<AnnouncementPayload, 'ownerUsername'> {
   id: number;
   ownerUsername?: string;
   createdAt?: string;
   updatedAt?: string;
+  careType?: CareTypeDto;
 }
 
-export type AnnouncementStatus = 'PENDING' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
+export type AnnouncementStatus = 'PUBLISHED' | 'IN_PROGRESS' | 'COMPLETED' | 'PENDING' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
 
 export interface ApplicationPayload {
   announcementId: number;
   guardianUsername: string;
   message?: string;
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED';
+  status: 'SENT' | 'ACCEPTED' | 'REFUSED';
 }
 
 export interface ApplicationResponseDto extends ApplicationPayload {
@@ -102,14 +134,16 @@ export interface FavoriteCheckResponse {
 }
 
 export interface RatingPayload {
-  score: number;
-  comment?: string;
+  note: number;
+  commentaire?: string;
 }
 
-export interface RatingDto extends RatingPayload {
+export interface RatingDto {
   id: number;
   authorId: string;
   recipientId: string;
+  note: number;
+  commentaire?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -136,8 +170,6 @@ export interface ApplicationFilters {
   announcementId?: number;
   guardianUsername?: string;
   status?: ApplicationPayload['status'];
-  page?: number;
-  limit?: number;
 }
 
 export interface DiscussionQueryParams {

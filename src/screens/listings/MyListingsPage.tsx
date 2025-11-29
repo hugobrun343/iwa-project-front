@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
@@ -7,94 +7,209 @@ import { Badge } from '../../components/ui/Badge';
 import { Icon } from '../../components/ui/Icon';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { ImageWithFallback } from '../../components/ui/ImageWithFallback';
+import { Textarea } from '../../components/ui/Textarea';
+import { ApplicationsPanel } from '../../components/applications/ApplicationsPanel';
 import { theme } from '../../styles/theme';
+import { useAuth } from '../../contexts/AuthContext';
+import { useAnnouncementsApi } from '../../hooks/api/useAnnouncementsApi';
+import { useApplicationsApi } from '../../hooks/api/useApplicationsApi';
+import { useRatingsApi } from '../../hooks/api/useRatingsApi';
+import { useUserApi } from '../../hooks/api/useUserApi';
+import { normalizeImageList } from '../../utils/imageUtils';
+import { AnnouncementStatus, RatingDto } from '../../types/api';
 
 interface MyListingsPageProps {
   onBack: () => void;
   onCreateListing: () => void;
+  onEditListing?: (listingId: string) => void;
 }
 
-export function MyListingsPage({ onBack, onCreateListing }: MyListingsPageProps) {
+export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyListingsPageProps) {
   const [selectedTab, setSelectedTab] = useState("active");
+  const [userListings, setUserListings] = useState<any>({ active: [], completed: [] });
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<{ id: number; title: string } | null>(null);
+  const [showApplicationsPanel, setShowApplicationsPanel] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [selectedListingForMenu, setSelectedListingForMenu] = useState<any>(null);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  
+  const { user, isAuthenticated, accessToken } = useAuth();
+  const { listAnnouncementsByOwner, deleteAnnouncement, updateAnnouncementStatus } = useAnnouncementsApi();
+  const { listApplications } = useApplicationsApi();
+  const { getRatingsGiven, createRating, updateRating } = useRatingsApi();
+  const { getUserByUsername } = useUserApi();
+  const [ratingModalVisible, setRatingModalVisible] = useState(false);
+  const [selectedListingForRating, setSelectedListingForRating] = useState<any>(null);
+  const [ratingScore, setRatingScore] = useState(0);
+  const [ratingComment, setRatingComment] = useState('');
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
 
-  // Mock data for user listings
-  const userListings = {
-    active: [
-      {
-        id: "1",
-        title: "Appartement moderne avec vue - 2 chats adorables",
-        location: "Paris 11ème",
-        price: 35,
-        period: "5-12 Jan",
-        frequency: "2 fois par jour",
-        status: "active",
-        applications: 3,
-        views: 24,
-        imageUrl: "https://images.unsplash.com/photo-1594873604892-b599f847e859?w=300",
-        tags: ["Animaux", "Plantes"],
-        createdAt: "Il y a 2 jours",
-      },
-      {
-        id: "2",
-        title: "Jungle urbaine - Arrosage intensif requis",
-        location: "Belleville",
-        price: 20,
-        period: "3-10 Fév",
-        frequency: "1 jour sur 2",
-        status: "active",
-        applications: 1,
-        views: 12,
-        imageUrl: "https://images.unsplash.com/photo-1605260346600-f98d9cf022a5?w=300",
-        tags: ["Plantes", "Longue durée"],
-        createdAt: "Il y a 5 jours",
-      },
-    ],
-    draft: [
-      {
-        id: "3",
-        title: "Garde Minou - Brouillon",
-        location: "Non définie",
-        price: 0,
-        period: "À définir",
-        frequency: "Non définie",
-        status: "draft",
-        applications: 0,
-        views: 0,
-        imageUrl: null,
-        tags: [],
-        createdAt: "Il y a 3 jours",
-      },
-    ],
-    completed: [
-      {
-        id: "4",
-        title: "Golden Retriever énergique - Maison avec jardin",
-        location: "Vincennes",
-        price: 45,
-        period: "15-20 Déc",
-        frequency: "3 fois par jour",
-        status: "completed",
-        applications: 8,
-        views: 45,
-        imageUrl: "https://images.unsplash.com/photo-1687211818108-667d028f1ae4?w=300",
-        tags: ["Animaux", "Jardin"],
-        createdAt: "Il y a 1 mois",
-        guardian: "Marc Dubois",
-        rating: 5,
-      },
-    ],
+  // Helper function to load listings with guardian info
+  const loadListingsWithGuardianInfo = async () => {
+    if (!isAuthenticated || !user?.username || !accessToken) return;
+
+    try {
+      const announcements = await listAnnouncementsByOwner(user.username);
+      
+      if (announcements) {
+        const listingsWithStats = await Promise.all(announcements.map(async (ann) => {
+          const applications = await listApplications({ announcementId: ann.id });
+          const publicImageUris = normalizeImageList(ann.publicImages);
+          
+          let guardianInfo = null;
+          let guardianUsername: string | null = null;
+          let ratingGiven = false;
+          let ratingId: number | undefined;
+          
+          if (ann.status === 'COMPLETED' && applications) {
+            const acceptedApp = applications.find(app => app.status === 'ACCEPTED');
+            if (acceptedApp?.guardianUsername) {
+              guardianUsername = acceptedApp.guardianUsername;
+              try {
+                guardianInfo = await getUserByUsername(guardianUsername);
+                if (user?.username) {
+                  const ratingsGiven = await getRatingsGiven(user.username, { limit: 100, page: 0 });
+                  if (ratingsGiven?.content) {
+                    const existingRating = ratingsGiven.content.find((r: RatingDto) => 
+                      r.recipientId === guardianUsername
+                    );
+                    if (existingRating) {
+                      ratingGiven = true;
+                      ratingId = existingRating.id;
+                    }
+                  }
+                }
+              } catch (err) {
+                console.warn(`Failed to fetch guardian info for ${guardianUsername}:`, err);
+              }
+            }
+          }
+
+          return {
+            id: String(ann.id),
+            title: ann.title,
+            location: ann.location,
+            price: ann.remuneration || 0,
+            period: ann.startDate ? new Date(ann.startDate).toLocaleDateString('fr-FR') : '',
+            frequency: ann.visitFrequency || "À discuter",
+            status: ann.status?.toLowerCase() || 'pending',
+            applications: applications?.length || 0,
+            imageUri: publicImageUris[0] || null,
+            tags: ann.careTypeLabel ? [ann.careTypeLabel] : [],
+            createdAt: ann.createdAt ? new Date(ann.createdAt).toLocaleDateString('fr-FR') : 'Récemment',
+            guardian: guardianInfo ? `${guardianInfo.firstName || ''} ${guardianInfo.lastName || ''}`.trim() || guardianUsername : guardianUsername,
+            guardianUsername,
+            guardianAvatar: guardianInfo?.profilePhoto,
+            ratingGiven,
+            ratingId,
+          };
+        }));
+
+        const grouped = {
+          active: listingsWithStats.filter(l => l.status === 'published' || l.status === 'in_progress'),
+          completed: listingsWithStats.filter(l => l.status === 'completed'),
+        };
+
+        setUserListings(grouped);
+      }
+    } catch (error) {
+      console.error('Error loading listings:', error);
+    }
   };
+
+  useEffect(() => {
+    const loadUserListings = async () => {
+      if (!isAuthenticated || !user?.username || !accessToken) return;
+
+      try {
+        setIsLoading(true);
+        await loadListingsWithGuardianInfo();
+      } catch (error) {
+        console.error('Error loading user listings:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadUserListings();
+  }, [user?.username, isAuthenticated, accessToken, listAnnouncementsByOwner, listApplications, getRatingsGiven, getUserByUsername]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
         return <Badge variant="outline" style={styles.activeBadge}>Active</Badge>;
-      case "draft":
-        return <Badge variant="outline" style={styles.draftBadge}>Brouillon</Badge>;
       case "completed":
         return <Badge variant="outline" style={styles.completedBadge}>Terminée</Badge>;
       default:
         return null;
+    }
+  };
+
+  const handleMenuPress = (listing: any) => {
+    setSelectedListingForMenu(listing);
+    setMenuVisible(true);
+  };
+
+  const handleDelete = () => {
+    if (!selectedListingForMenu) return;
+    
+    Alert.alert(
+      "Supprimer l'annonce",
+      `Êtes-vous sûr de vouloir supprimer "${selectedListingForMenu.title}" ? Cette action est irréversible.`,
+      [
+        {
+          text: "Annuler",
+          style: "cancel"
+        },
+        {
+          text: "Supprimer",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteAnnouncement(Number(selectedListingForMenu.id));
+              setMenuVisible(false);
+              setSelectedListingForMenu(null);
+              await loadListingsWithGuardianInfo();
+            } catch (error) {
+              console.error('Error deleting announcement:', error);
+              Alert.alert("Erreur", "Impossible de supprimer l'annonce.");
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleChangeStatus = () => {
+    setMenuVisible(false);
+    setShowStatusModal(true);
+  };
+
+  const handleStatusSelect = async (status: AnnouncementStatus) => {
+    if (!selectedListingForMenu) return;
+
+    try {
+      await updateAnnouncementStatus(Number(selectedListingForMenu.id), status);
+      setShowStatusModal(false);
+      setSelectedListingForMenu(null);
+      await loadListingsWithGuardianInfo();
+    } catch (error) {
+      console.error('Error updating status:', error);
+      Alert.alert("Erreur", "Impossible de modifier le statut de l'annonce.");
+    }
+  };
+
+  const getStatusLabel = (status: AnnouncementStatus): string => {
+    switch (status) {
+      case 'PUBLISHED':
+        return 'Publiée';
+      case 'IN_PROGRESS':
+        return 'En cours';
+      case 'COMPLETED':
+        return 'Terminée';
+      default:
+        return status;
     }
   };
 
@@ -104,9 +219,9 @@ export function MyListingsPage({ onBack, onCreateListing }: MyListingsPageProps)
         <View style={styles.cardHeader}>
           <View style={styles.listingMainInfo}>
             <View style={styles.listingImageContainer}>
-              {listing.imageUrl ? (
+              {listing.imageUri ? (
                 <ImageWithFallback
-                  src={listing.imageUrl}
+                  source={{ uri: listing.imageUri }}
                   style={styles.listingImage}
                 />
               ) : (
@@ -135,20 +250,29 @@ export function MyListingsPage({ onBack, onCreateListing }: MyListingsPageProps)
             <Text style={styles.detailLabel}>Période :</Text>
             <Text style={styles.detailValue}>{listing.period}</Text>
           </View>
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Vues :</Text>
-            <View style={styles.statRow}>
-              <Icon name="eye" size={12} color={theme.colors.mutedForeground} />
-              <Text style={styles.detailValue}>{listing.views}</Text>
-            </View>
-          </View>
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Candidatures :</Text>
-            <View style={styles.statRow}>
-              <Icon name="person" size={12} color={theme.colors.mutedForeground} />
-              <Text style={styles.detailValue}>{listing.applications}</Text>
-            </View>
-          </View>
+          {listing.status !== 'completed' && (
+            <TouchableOpacity 
+              style={styles.detailItem}
+              onPress={() => {
+                if (listing.applications > 0) {
+                  setSelectedAnnouncement({ id: Number(listing.id), title: listing.title });
+                  setShowApplicationsPanel(true);
+                }
+              }}
+              disabled={listing.applications === 0}
+            >
+              <Text style={styles.detailLabel}>Candidatures :</Text>
+              <View style={styles.statRow}>
+                <Icon name="person" size={12} color={theme.colors.mutedForeground} />
+                <Text style={[styles.detailValue, listing.applications > 0 && styles.clickableValue]}>
+                  {listing.applications}
+                </Text>
+                {listing.applications > 0 && (
+                  <Icon name="ChevronRight" size={12} color={theme.colors.mutedForeground} />
+                )}
+              </View>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.tagsRow}>
@@ -162,33 +286,85 @@ export function MyListingsPage({ onBack, onCreateListing }: MyListingsPageProps)
         {listing.status === 'completed' && listing.guardian && (
           <View style={styles.guardianSection}>
             <View style={styles.guardianInfo}>
-              <Text style={styles.guardianText}>Gardé par {listing.guardian}</Text>
-              {listing.rating && (
-                <View style={styles.ratingContainer}>
-                  {[...Array(5)].map((_, i) => (
-                    <Icon 
-                      key={i} 
-                      name="star" 
-                      size={14} 
-                      color={i < listing.rating ? "#fbbf24" : "#d1d5db"} 
+              <View style={styles.guardianHeader}>
+                <View style={styles.guardianAvatar}>
+                  {listing.guardianAvatar ? (
+                    <ImageWithFallback
+                      source={{ uri: listing.guardianAvatar }}
+                      style={styles.guardianAvatarImage}
+                      fallbackIcon="person"
                     />
-                  ))}
+                  ) : (
+                    <Icon name="person" size={20} color={theme.colors.mutedForeground} />
+                  )}
                 </View>
-              )}
+                <Text style={styles.guardianText}>Gardé par {listing.guardian}</Text>
+              </View>
+            </View>
+            <View style={styles.guardianActions}>
+              <Button
+                variant="outline"
+                size="sm"
+                style={styles.rateGuardianButton}
+                onPress={() => {
+                  setSelectedListingForRating(listing);
+                  setRatingScore(0);
+                  setRatingComment('');
+                  setRatingModalVisible(true);
+                }}
+                disabled={listing.ratingGiven}
+              >
+                <Icon 
+                  name="star" 
+                  size={16} 
+                  color={listing.ratingGiven ? theme.colors.mutedForeground : theme.colors.foreground} 
+                  style={styles.buttonIcon} 
+                />
+                <Text style={[
+                  styles.buttonText,
+                  listing.ratingGiven && styles.disabledButtonText
+                ]}>
+                  {listing.ratingGiven ? 'Déjà noté' : 'Noter le gardien'}
+                </Text>
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                style={styles.moreButton}
+                onPress={() => handleMenuPress(listing)}
+              >
+                <Icon name="ellipsis-vertical" size={16} color={theme.colors.foreground} />
+              </Button>
             </View>
           </View>
         )}
 
         <View style={styles.listingFooter}>
-          <Text style={styles.createdAt}>Créée {listing.createdAt}</Text>
+          {listing.status !== 'completed' && (
+            <Text style={styles.createdAt}>Créée {listing.createdAt}</Text>
+          )}
           <View style={styles.actionButtons}>
-            <Button variant="outline" size="sm" style={styles.editButton}>
-              <Icon name="create" size={16} color={theme.colors.foreground} style={styles.buttonIcon} />
-              <Text style={styles.buttonText}>Modifier</Text>
-            </Button>
-            <Button variant="ghost" size="sm" style={styles.moreButton}>
-              <Icon name="ellipsis-vertical" size={16} color={theme.colors.foreground} />
-            </Button>
+            {listing.status !== 'completed' && (
+              <>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  style={styles.editButton}
+                  onPress={() => onEditListing?.(listing.id)}
+                >
+                  <Icon name="create" size={16} color={theme.colors.foreground} style={styles.buttonIcon} />
+                  <Text style={styles.buttonText}>Modifier</Text>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  style={styles.moreButton}
+                  onPress={() => handleMenuPress(listing)}
+                >
+                  <Icon name="ellipsis-vertical" size={16} color={theme.colors.foreground} />
+                </Button>
+              </>
+            )}
           </View>
         </View>
       </CardContent>
@@ -197,7 +373,6 @@ export function MyListingsPage({ onBack, onCreateListing }: MyListingsPageProps)
 
   const tabCounts = {
     active: userListings.active.length,
-    draft: userListings.draft.length,
     completed: userListings.completed.length,
   };
 
@@ -205,8 +380,6 @@ export function MyListingsPage({ onBack, onCreateListing }: MyListingsPageProps)
     switch (selectedTab) {
       case "active":
         return userListings.active;
-      case "draft":
-        return userListings.draft;
       case "completed":
         return userListings.completed;
       default:
@@ -234,12 +407,6 @@ export function MyListingsPage({ onBack, onCreateListing }: MyListingsPageProps)
         </View>
         <View style={styles.statItem}>
           <Text style={styles.statValue}>
-            {userListings.active.reduce((acc, listing) => acc + listing.views, 0)}
-          </Text>
-          <Text style={styles.statLabel}>Vues totales</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>
             {userListings.active.reduce((acc, listing) => acc + listing.applications, 0)}
           </Text>
           <Text style={styles.statLabel}>Candidatures</Text>
@@ -250,7 +417,6 @@ export function MyListingsPage({ onBack, onCreateListing }: MyListingsPageProps)
       <View style={styles.tabsContainer}>
         {[
           { id: "active", label: "Actives", count: tabCounts.active },
-          { id: "draft", label: "Brouillons", count: tabCounts.draft },
           { id: "completed", label: "Terminées", count: tabCounts.completed },
         ].map((tab) => (
           <Button
@@ -283,14 +449,12 @@ export function MyListingsPage({ onBack, onCreateListing }: MyListingsPageProps)
           <View style={styles.emptyState}>
             <Icon name="Plus" size={64} color={theme.colors.mutedForeground} />
             <Text style={styles.emptyTitle}>
-              {selectedTab === "active" && "Aucune annonce active"}
-              {selectedTab === "draft" && "Aucun brouillon"}
-              {selectedTab === "completed" && "Aucune garde terminée"}
+              {selectedTab === "active" ? "Aucune annonce active" : "Aucune garde terminée"}
             </Text>
             <Text style={styles.emptyDescription}>
-              {selectedTab === "active" && "Créez votre première annonce pour commencer à recevoir des candidatures."}
-              {selectedTab === "draft" && "Vos brouillons d'annonces apparaîtront ici."}
-              {selectedTab === "completed" && "Vos annonces terminées apparaîtront ici avec les détails de la garde."}
+              {selectedTab === "active" 
+                ? "Créez votre première annonce pour commencer à recevoir des candidatures."
+                : "Vos annonces terminées apparaîtront ici avec les détails de la garde."}
             </Text>
             {selectedTab === "active" && (
               <Button onPress={onCreateListing} style={styles.emptyActionButton}>
@@ -301,6 +465,218 @@ export function MyListingsPage({ onBack, onCreateListing }: MyListingsPageProps)
           </View>
         )}
       </ScrollView>
+
+      {/* Applications Panel */}
+      {selectedAnnouncement && (
+        <ApplicationsPanel
+          visible={showApplicationsPanel}
+          announcementId={selectedAnnouncement.id}
+          announcementTitle={selectedAnnouncement.title}
+          onClose={() => {
+            setShowApplicationsPanel(false);
+            setSelectedAnnouncement(null);
+          }}
+          onApplicationUpdated={() => {
+            loadListingsWithGuardianInfo();
+          }}
+        />
+      )}
+
+      {/* Menu Modal */}
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.menuOverlay}
+          activeOpacity={1}
+          onPress={() => setMenuVisible(false)}
+        >
+          <View style={styles.menuContent}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={handleChangeStatus}
+            >
+              <Icon name="swap-vertical" size={20} color={theme.colors.foreground} />
+              <Text style={styles.menuItemText}>Changer le statut</Text>
+            </TouchableOpacity>
+            <View style={styles.menuDivider} />
+            <TouchableOpacity
+              style={[styles.menuItem, styles.deleteMenuItem]}
+              onPress={handleDelete}
+            >
+              <Icon name="trash" size={20} color="#ef4444" />
+              <Text style={[styles.menuItemText, styles.deleteMenuText]}>Supprimer</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Status Selection Modal */}
+      <Modal
+        visible={showStatusModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowStatusModal(false);
+          setSelectedListingForMenu(null);
+        }}
+      >
+        <View style={styles.statusModalOverlay}>
+          <View style={styles.statusModalContent}>
+            <View style={styles.statusModalHeader}>
+              <Text style={styles.statusModalTitle}>Changer le statut</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowStatusModal(false);
+                  setSelectedListingForMenu(null);
+                }}
+              >
+                <Icon name="Close" size={24} color={theme.colors.foreground} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.statusModalSubtitle}>
+              Sélectionnez le nouveau statut pour "{selectedListingForMenu?.title}"
+            </Text>
+            <View style={styles.statusOptions}>
+              {(['PUBLISHED', 'IN_PROGRESS', 'COMPLETED'] as AnnouncementStatus[]).map((status) => (
+                <TouchableOpacity
+                  key={status}
+                  style={styles.statusOption}
+                  onPress={() => handleStatusSelect(status)}
+                >
+                  <Text style={styles.statusOptionText}>{getStatusLabel(status)}</Text>
+                  <Icon name="ChevronRight" size={16} color={theme.colors.mutedForeground} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Rating Modal */}
+      <Modal
+        visible={ratingModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setRatingModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Noter le gardien</Text>
+              <TouchableOpacity
+                onPress={() => setRatingModalVisible(false)}
+                style={styles.modalCloseButton}
+              >
+                <Icon name="close" size={24} color={theme.colors.foreground} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedListingForRating && (
+              <>
+                <Text style={styles.modalSubtitle}>{selectedListingForRating.title}</Text>
+                <Text style={styles.modalOwnerText}>Gardien: {selectedListingForRating.guardian}</Text>
+
+                <View style={styles.ratingInputContainer}>
+                  <Text style={styles.ratingLabel}>Note (1-5 étoiles)</Text>
+                  <View style={styles.ratingStarsInput}>
+                    {[...Array(5)].map((_, i) => (
+                      <TouchableOpacity
+                        key={i}
+                        onPress={() => setRatingScore(i + 1)}
+                        style={styles.starButton}
+                      >
+                        <Icon
+                          name="star"
+                          size={32}
+                          color={i < ratingScore ? "#fbbf24" : "#d1d5db"}
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {ratingScore > 0 && (
+                    <Text style={styles.ratingScoreText}>{ratingScore} / 5</Text>
+                  )}
+                </View>
+
+                <View style={styles.commentContainer}>
+                  <Text style={styles.commentLabel}>Commentaire (optionnel)</Text>
+                  <Textarea
+                    value={ratingComment}
+                    onChangeText={setRatingComment}
+                    placeholder="Partagez votre expérience..."
+                    rows={4}
+                    style={styles.commentInput}
+                  />
+                </View>
+
+                <View style={styles.modalActions}>
+                  <Button
+                    variant="outline"
+                    onPress={() => setRatingModalVisible(false)}
+                    style={styles.modalCancelButton}
+                  >
+                    <Text>Annuler</Text>
+                  </Button>
+                  <Button
+                    onPress={async () => {
+                      if (!selectedListingForRating?.guardianUsername || ratingScore === 0) {
+                        Alert.alert('Erreur', 'Veuillez sélectionner une note');
+                        return;
+                      }
+
+                      if (!user?.username) {
+                        Alert.alert('Erreur', 'Utilisateur non connecté');
+                        return;
+                      }
+
+                      try {
+                        setIsSubmittingRating(true);
+                        
+                        if (selectedListingForRating.ratingId) {
+                          await updateRating(selectedListingForRating.ratingId, {
+                            note: ratingScore,
+                            commentaire: ratingComment || undefined,
+                          });
+                        } else {
+                          await createRating(selectedListingForRating.guardianUsername, {
+                            note: ratingScore,
+                            commentaire: ratingComment || undefined,
+                          });
+                        }
+
+                        setRatingModalVisible(false);
+                        setSelectedListingForRating(null);
+                        setRatingScore(0);
+                        setRatingComment('');
+                        await loadListingsWithGuardianInfo();
+                        
+                        Alert.alert('Succès', 'Votre évaluation a été enregistrée');
+                      } catch (err) {
+                        console.error('Error submitting rating:', err);
+                        Alert.alert('Erreur', 'Impossible d\'enregistrer l\'évaluation. Veuillez réessayer.');
+                      } finally {
+                        setIsSubmittingRating(false);
+                      }
+                    }}
+                    disabled={ratingScore === 0 || isSubmittingRating}
+                    style={styles.modalSubmitButton}
+                  >
+                    {isSubmittingRating ? (
+                      <ActivityIndicator size="small" color={theme.colors.primaryForeground} />
+                    ) : (
+                      <Text style={styles.modalSubmitText}>Enregistrer</Text>
+                    )}
+                  </Button>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -458,9 +834,6 @@ const styles = StyleSheet.create({
   activeBadge: {
     borderColor: '#d1d5db',
   },
-  draftBadge: {
-    borderColor: '#d1d5db',
-  },
   completedBadge: {
     borderColor: '#d1d5db',
   },
@@ -611,11 +984,34 @@ const styles = StyleSheet.create({
   },
   guardianSection: {
     marginBottom: theme.spacing.md,
+    gap: theme.spacing.sm,
   },
   guardianInfo: {
+    marginBottom: theme.spacing.sm,
+  },
+  guardianHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  guardianActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  guardianAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.muted,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  guardianAvatarImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   actionButtons: {
     flexDirection: 'row',
@@ -632,5 +1028,187 @@ const styles = StyleSheet.create({
   },
   buttonIcon: {
     marginRight: theme.spacing.xs,
+  },
+  clickableValue: {
+    color: theme.colors.primary,
+    fontWeight: theme.fontWeight.medium,
+  },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  menuContent: {
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.borderRadius.lg,
+    minWidth: 200,
+    ...theme.shadows.md,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+  },
+  deleteMenuItem: {
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  menuItemText: {
+    fontSize: theme.fontSize.base,
+    color: theme.colors.foreground,
+  },
+  deleteMenuText: {
+    color: '#ef4444',
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: theme.colors.border,
+  },
+  statusModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  statusModalContent: {
+    backgroundColor: theme.colors.background,
+    borderTopLeftRadius: theme.borderRadius.xl,
+    borderTopRightRadius: theme.borderRadius.xl,
+    paddingTop: theme.spacing.xl,
+    paddingBottom: theme.spacing['2xl'],
+    paddingHorizontal: theme.spacing.lg,
+    maxHeight: '80%',
+  },
+  statusModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  statusModalTitle: {
+    fontSize: theme.fontSize.xl,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.foreground,
+  },
+  statusModalSubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
+    marginBottom: theme.spacing.xl,
+  },
+  statusOptions: {
+    gap: theme.spacing.sm,
+  },
+  statusOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.inputBackground,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  statusOptionText: {
+    fontSize: theme.fontSize.base,
+    color: theme.colors.foreground,
+  },
+  rateGuardianButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.xs,
+  },
+  disabledButtonText: {
+    color: theme.colors.mutedForeground,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: theme.colors.background,
+    borderTopLeftRadius: theme.borderRadius.xl,
+    borderTopRightRadius: theme.borderRadius.xl,
+    padding: theme.spacing.lg,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
+  },
+  modalTitle: {
+    fontSize: theme.fontSize.xl,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.foreground,
+  },
+  modalCloseButton: {
+    padding: theme.spacing.xs,
+  },
+  modalSubtitle: {
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.medium,
+    color: theme.colors.foreground,
+    marginBottom: theme.spacing.xs,
+  },
+  modalOwnerText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
+    marginBottom: theme.spacing.lg,
+  },
+  ratingInputContainer: {
+    marginBottom: theme.spacing.lg,
+  },
+  ratingLabel: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.foreground,
+    marginBottom: theme.spacing.md,
+    fontWeight: theme.fontWeight.medium,
+  },
+  ratingStarsInput: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+  },
+  starButton: {
+    padding: theme.spacing.xs,
+  },
+  ratingScoreText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
+    textAlign: 'center',
+    marginTop: theme.spacing.xs,
+  },
+  commentContainer: {
+    marginBottom: theme.spacing.lg,
+  },
+  commentLabel: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.foreground,
+    marginBottom: theme.spacing.sm,
+    fontWeight: theme.fontWeight.medium,
+  },
+  commentInput: {
+    marginBottom: 0,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    marginTop: theme.spacing.md,
+  },
+  modalCancelButton: {
+    flex: 1,
+  },
+  modalSubmitButton: {
+    flex: 1,
+  },
+  modalSubmitText: {
+    color: theme.colors.primaryForeground,
   },
 });

@@ -14,11 +14,13 @@ interface ListingCardProps {
   period: string;
   frequency: string;
   description: string;
-  imageUrl: string;
+  imageUri?: string | null;
   tags: string[];
+  careType?: string;
   isLiked?: boolean;
   rating?: number;
   reviewCount?: number;
+  ownerUsername?: string;
   onLikeToggle?: (id: string) => void;
 }
 
@@ -30,25 +32,37 @@ export function ListingCard({
   period,
   frequency,
   description,
-  imageUrl,
+  imageUri,
   tags,
+  careType,
   isLiked = false,
   rating,
   reviewCount,
+  ownerUsername,
   onLikeToggle,
 }: ListingCardProps) {
   return (
     <Card style={styles.card}>
       <View style={styles.imageContainer}>
-        <ImageWithFallback
-          src={imageUrl}
-          style={styles.image}
-          alt={title}
-        />
+        {imageUri ? (
+          <ImageWithFallback
+            source={{ uri: imageUri }}
+            style={styles.image}
+          />
+        ) : (
+          <View style={[styles.image, styles.imageFallback]}>
+            <Icon name="Image" size={32} color={theme.colors.mutedForeground} />
+          </View>
+        )}
         <View style={styles.tagsContainer}>
-          {tags.slice(0, 2).map((tag, index) => (
-            <Badge key={index} variant="secondary" style={styles.tag}>
-              <Text style={styles.tagText}>{tag}</Text>
+          {careType && (
+            <Badge key="caretype" variant="secondary" style={styles.tag} textStyle={styles.tagText}>
+              {String(careType)}
+            </Badge>
+          )}
+          {(tags || []).filter(tag => tag && tag !== careType).slice(0, careType ? 1 : 2).map((tag, index) => (
+            <Badge key={index} variant="secondary" style={styles.tag} textStyle={styles.tagText}>
+              {String(tag)}
             </Badge>
           ))}
         </View>
@@ -65,37 +79,44 @@ export function ListingCard({
       </View>
       
       <CardContent>
-        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.title}>{title || ''}</Text>
         
         <View style={styles.locationRow}>
           <Icon name="location" size={12} color={theme.colors.mutedForeground} />
-          <Text style={styles.locationText}>{location}</Text>
+          <Text style={styles.locationText}>{location || ''}</Text>
         </View>
         
+        {ownerUsername && (
+          <View style={styles.ownerRow}>
+            <Icon name="User" size={12} color={theme.colors.mutedForeground} />
+            <Text style={styles.ownerText}>{String(ownerUsername)}</Text>
+          </View>
+        )}
+        
         <Text style={styles.description} numberOfLines={2}>
-          {description}
+          {description || ''}
         </Text>
         
         <View style={styles.detailsRow}>
           <View style={styles.detailItem}>
             <Icon name="calendar" size={14} color={theme.colors.mutedForeground} />
-            <Text style={styles.detailText}>{period}</Text>
+            <Text style={styles.detailText}>{period || ''}</Text>
           </View>
           <View style={styles.priceContainer}>
-            <Text style={styles.priceText}>{price}€/jour</Text>
+            <Text style={styles.priceText}>{String(price || 0)}€/jour</Text>
           </View>
         </View>
         
         <View style={styles.frequencyRow}>
           <Icon name="time" size={14} color={theme.colors.mutedForeground} />
-          <Text style={styles.detailText}>{frequency}</Text>
+          <Text style={styles.detailText}>{frequency || ''}</Text>
         </View>
         
-        {rating && reviewCount && (
+        {rating != null && reviewCount != null && (
           <View style={styles.ratingRow}>
             <Icon name="star" size={14} color="#fbbf24" />
-            <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
-            <Text style={styles.reviewText}>({reviewCount} avis)</Text>
+            <Text style={styles.ratingText}>{String(rating.toFixed(1))}</Text>
+            <Text style={styles.reviewText}>({String(reviewCount)} avis)</Text>
           </View>
         )}
       </CardContent>
@@ -117,6 +138,11 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
+  },
+  imageFallback: {
+    backgroundColor: theme.colors.muted,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tagsContainer: {
     position: 'absolute',
@@ -155,6 +181,17 @@ const styles = StyleSheet.create({
   locationText: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.mutedForeground,
+  },
+  ownerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    marginBottom: theme.spacing.sm,
+  },
+  ownerText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
+    fontWeight: theme.fontWeight.medium,
   },
   description: {
     fontSize: theme.fontSize.sm,

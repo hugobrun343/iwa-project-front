@@ -110,7 +110,7 @@ export const useAuthActions = () => {
 
       console.log('� Attempting managed AuthRequest flow (no fallback)...');
       const managed = await AuthService.loginWithAuthRequest(useGoogle);
-  const tokens = await AuthService.exchangeCodeForTokens(managed.code, managed.codeVerifier);
+      const tokens = await AuthService.exchangeCodeForTokens(managed.code, managed.codeVerifier);
 
       if (!tokens.access_token) {
         throw new Error('No access token received');
@@ -158,9 +158,9 @@ export const useAuthActions = () => {
     }
   };
 
-  const performTokenRefresh = async (refreshToken: string): Promise<{ user: User | null; tokens: any }> => {
+  const performTokenRefresh = async (refreshToken: string, silent = false): Promise<{ user: User | null; tokens: any }> => {
     try {
-      const tokens = await AuthService.refreshAccessToken(refreshToken);
+      const tokens = await AuthService.refreshAccessToken(refreshToken, silent);
 
       if (!tokens.access_token) {
         throw new Error('Failed to refresh token');
@@ -175,7 +175,9 @@ export const useAuthActions = () => {
 
       return { user, tokens };
     } catch (error) {
-      console.error('Token refresh error:', error);
+      if (!silent) {
+        console.error('Token refresh error:', error);
+      }
       throw error;
     }
   };
@@ -202,13 +204,25 @@ export const useAuthActions = () => {
           } 
         };
       } else if (storedRefreshToken) {
-        // Try to refresh token
-        return await performTokenRefresh(storedRefreshToken);
+        // Try to refresh token silently during initialization
+        try {
+          return await performTokenRefresh(storedRefreshToken, true);
+        } catch (error) {
+          // If refresh fails (e.g., invalid token), clear tokens silently
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          if (errorMessage.includes('invalid_grant') || 
+              errorMessage.includes('Invalid token issuer') ||
+              errorMessage.includes('invalid grant')) {
+            // Silently clear invalid tokens
+            await clearAllTokens();
+          }
+          return { user: null, tokens: null };
+        }
       }
 
       return { user: null, tokens: null };
     } catch (error) {
-      console.error('Initialize from storage error:', error);
+      // Silently handle initialization errors (expected when tokens are invalid)
       return { user: null, tokens: null };
     }
   };
@@ -221,6 +235,30 @@ export const useAuthActions = () => {
     return await UserService.updateUserAttribute(accessToken, userId, attribute, value);
   };
 
+  const checkProfileComplete = async (username: string, accessToken: string): Promise<boolean> => {
+    try {
+      const apiBaseUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080';
+      const response = await fetch(`${apiBaseUrl}/api/users/${username}/profile-complete`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        console.warn('Failed to check profile complete:', response.status);
+        return false;
+      }
+
+      const data = await response.json();
+      return data.complete === true;
+    } catch (error) {
+      console.error('Error checking profile complete:', error);
+      return false;
+    }
+  };
+
   return {
     isLoading,
     performLogin,
@@ -229,5 +267,6 @@ export const useAuthActions = () => {
     initializeFromStorage,
     performUpdateProfile,
     performUpdateAttribute,
+    checkProfileComplete,
   };
 };

@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { isTokenExpiredOrExpiringSoon, isTokenExpired } from '../utils/tokenUtils';
 
 export type QueryParamValue =
   | string
@@ -29,9 +30,14 @@ export class ApiError<T = any> extends Error {
   }
 }
 
-const DEFAULT_BASE_URL =
+// Get the backend URL from environment or use defaults
+// For mobile: use localhost if running on emulator, or use network IP for physical device
+// For web: use current origin or localhost
+export const DEFAULT_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ??
-  (Platform.OS === 'web' ? window.location.origin : 'http://localhost:8080');
+  (Platform.OS === 'web' 
+    ? (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8080')
+    : 'http://localhost:8080');
 
 const buildUrl = (path: string, query?: Record<string, QueryParamValue>, baseUrl = DEFAULT_BASE_URL) => {
   const url = path.startsWith('http') ? new URL(path) : new URL(path.replace(/^\//, ''), `${baseUrl.replace(/\/$/, '')}/`);
@@ -80,7 +86,14 @@ export interface ApiClient {
   ) => Promise<TResponse>;
 }
 
-export const createApiClient = (getAccessToken: () => string | null, baseUrl = DEFAULT_BASE_URL): ApiClient => {
+export const createApiClient = (
+  getAccessToken: () => string | null,
+  baseUrl = DEFAULT_BASE_URL,
+  onTokenRefresh?: () => Promise<void>
+): ApiClient => {
+  let isRefreshing = false;
+  let refreshPromise: Promise<void> | null = null;
+
   const request = async <TResponse, TBody = unknown>(
     path: string,
     options: ApiRequestOptions<TBody> = {}
@@ -88,42 +101,141 @@ export const createApiClient = (getAccessToken: () => string | null, baseUrl = D
     const { method = 'GET', body, headers, query, withAuth = true, signal } = options;
     const url = buildUrl(path, query, baseUrl);
 
-    const finalHeaders: Record<string, string> = {
+    // Prepare body once (can be reused for retry)
+    let payload: BodyInit | undefined;
+    const finalHeadersBase: Record<string, string> = {
       Accept: 'application/json',
       ...(headers ?? {}),
     };
-
-    let payload: BodyInit | undefined;
 
     if (body instanceof FormData) {
       payload = body;
     } else if (body !== undefined && body !== null) {
       payload = JSON.stringify(body);
-      finalHeaders['Content-Type'] = finalHeaders['Content-Type'] ?? 'application/json';
+      finalHeadersBase['Content-Type'] = finalHeadersBase['Content-Type'] ?? 'application/json';
     }
 
-    if (withAuth) {
-      const token = getAccessToken();
-      if (token) {
+    const makeRequest = async (token: string | null): Promise<Response> => {
+      const finalHeaders = { ...finalHeadersBase };
+
+      if (withAuth && token) {
         finalHeaders.Authorization = `Bearer ${token}`;
       }
-    }
 
-    const response = await fetch(url, {
-      method,
-      headers: finalHeaders,
-      body: payload,
-      signal,
-    });
+      return fetch(url, {
+        method,
+        headers: finalHeaders,
+        body: payload,
+        signal,
+      });
+    };
+
+    let token = withAuth ? getAccessToken() : null;
+    
+    // Check if token is expired or expiring soon before making the request
+    if (withAuth && token && onTokenRefresh) {
+      const isActuallyExpired = isTokenExpired(token);
+      const isExpiringSoon = isTokenExpiredOrExpiringSoon(token, 30);
+      
+      if (isActuallyExpired || isExpiringSoon) {
+        console.log(isActuallyExpired 
+          ? '🚨 Token expired, refreshing before request...' 
+          : '⚠️ Token expiring soon, refreshing before request...');
+        try {
+          // Wait for any ongoing refresh to complete
+          if (isRefreshing && refreshPromise) {
+            await refreshPromise;
+          } else if (!isRefreshing) {
+            // Start a new refresh
+            isRefreshing = true;
+            refreshPromise = onTokenRefresh()
+              .then(() => {
+                isRefreshing = false;
+                refreshPromise = null;
+              })
+              .catch((error) => {
+                isRefreshing = false;
+                refreshPromise = null;
+                throw error;
+              });
+            
+            await refreshPromise;
+          }
+          // Get the refreshed token
+          token = getAccessToken();
+        } catch (error) {
+          console.error('Pre-request token refresh failed:', error);
+          // Continue with original token, let the request fail and handle 401 below
+        }
+      }
+    }
+    
+    let response = await makeRequest(token);
+
+    // If we get a 401 and have auth enabled, try to refresh the token
+    if (response.status === 401 && withAuth && onTokenRefresh) {
+      // Wait for any ongoing refresh to complete
+      if (isRefreshing && refreshPromise) {
+        await refreshPromise;
+      } else if (!isRefreshing) {
+        // Start a new refresh
+        isRefreshing = true;
+        refreshPromise = onTokenRefresh()
+          .then(() => {
+            isRefreshing = false;
+            refreshPromise = null;
+          })
+          .catch((error) => {
+            isRefreshing = false;
+            refreshPromise = null;
+            throw error;
+          });
+        
+        await refreshPromise;
+      }
+
+      // Retry the request with the new token
+      token = getAccessToken();
+      response = await makeRequest(token);
+    }
 
     const parsed = await parseResponse(response);
 
     if (!response.ok) {
-      const message =
-        (parsed && typeof parsed === 'object' && 'message' in parsed && parsed.message) ||
-        response.statusText ||
-        'Unknown API error';
-      throw new ApiError(message as string, response.status, parsed);
+      // Extract error message from various possible formats
+      let message = response.statusText || 'Unknown API error';
+      
+      if (parsed && typeof parsed === 'object') {
+        // Try different common error message fields
+        const errorFields = ['message', 'error', 'error_description', 'detail', 'errorMessage', 'msg'];
+        for (const field of errorFields) {
+          if (field in parsed && parsed[field]) {
+            message = String(parsed[field]);
+            break;
+          }
+        }
+        
+        // For 429 (rate limiting), provide a more helpful message
+        if (response.status === 429) {
+          const retryAfter = response.headers.get('Retry-After');
+          if (retryAfter) {
+            message = `Too many requests. Please try again in ${retryAfter} seconds.`;
+          } else {
+            message = message || 'Too many requests. Please try again later.';
+          }
+        }
+      }
+      
+      // Log error details for debugging
+      if (response.status >= 500) {
+        console.error(`❌ Server error (${response.status}):`, message, parsed);
+      } else if (response.status === 429) {
+        console.warn(`⚠️ Rate limit exceeded (429):`, message);
+      } else if (response.status >= 400) {
+        console.warn(`⚠️ Client error (${response.status}):`, message);
+      }
+      
+      throw new ApiError(message, response.status, parsed);
     }
 
     return parsed as TResponse;
