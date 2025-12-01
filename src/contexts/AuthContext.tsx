@@ -7,8 +7,6 @@ import { isTokenExpiredOrExpiringSoon, isTokenExpired, getTimeUntilExpiration } 
 // Configure WebBrowser for better UX
 WebBrowser.maybeCompleteAuthSession();
 
-const ENABLE_SIMULATED_LOGIN = process.env.EXPO_PUBLIC_ENABLE_SIMULATED_LOGIN === 'true';
-
 // Token refresh check interval (check every 60 seconds)
 const TOKEN_CHECK_INTERVAL = 60000;
 // Refresh token if it expires within 60 seconds (1 minute)
@@ -91,38 +89,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     } catch (error) {
       // console.error('Login error:', error);
-    }
-  };
-
-  const simulateLogin = async () => {
-    if (!ENABLE_SIMULATED_LOGIN) {
-      throw new Error('Simulated login is disabled by configuration');
-    }
-    try {
-      setIsLoading(true);
-      const fakeUser: User = {
-        id: 'dev-user-1',
-        email: 'dev.user@example.com',
-        firstName: 'Dev',
-        lastName: 'User',
-        username: 'devuser',
-        telephone: '0000000000',
-        localisation: 'DevVille',
-        description: 'Utilisateur simulé pour le développement',
-        photo_profil: undefined,
-        verification_identite: true,
-        preferences: undefined,
-        date_inscription: new Date().toISOString(),
-        fullName: 'Dev User',
-        isVerified: true,
-      };
-      setUser(fakeUser);
-      setAccessToken('dev-access-token');
-      setRefreshTokenValue('dev-refresh-token');
-      // Mark profile as complete for simulated login
-      setIsProfileComplete(true);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -311,7 +277,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     accessToken,
     isProfileComplete,
     login,
-    simulateLogin: ENABLE_SIMULATED_LOGIN ? simulateLogin : undefined,
     loginWithGoogle,
     logout,
     refreshToken,

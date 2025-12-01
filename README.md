@@ -30,33 +30,6 @@ Cette application permet aux utilisateurs de :
 
 ---
 
-## 📁 Structure du Projet
-
-```
-src/
-├── components/           # Composants réutilisables
-│   ├── ui/              # Composants UI de base
-│   ├── BottomNavigation.tsx
-│   ├── SearchHeader.tsx
-│   ├── ListingCard.tsx
-│   ├── ListingsGrid.tsx
-│   ├── ListingDetailPage.tsx
-│   ├── ProfilePage.tsx
-│   ├── FavoritesPage.tsx
-│   ├── MessagesPage.tsx
-│   ├── CreateListingPage.tsx
-│   ├── MyListingsPage.tsx
-│   ├── GuardHistoryPage.tsx
-│   ├── ReviewsPage.tsx
-│   ├── SubscriptionPage.tsx
-│   ├── PaymentsPage.tsx
-│   └── EditProfilePage.tsx
-├── styles/              # Styles globaux
-└── main.tsx            # Point d'entrée de l'application
-```
-
----
-
 ## 🚀 Installation et Lancement
 
 ### Prérequis
@@ -73,7 +46,66 @@ cd IWAProject-Front
 
 # Installer les dépendances
 npm install
+```
 
+### Configuration pour les tests locaux
+
+Si vous testez l'application sur votre ordinateur local, vous devez configurer l'adresse IP de votre machine dans le fichier `.env`.
+
+#### Récupérer l'adresse IP de votre ordinateur
+
+**Windows :**
+```bash
+# Ouvrir PowerShell ou Invite de commandes
+ipconfig
+
+# Chercher la section "Carte réseau Ethernet" ou "Carte réseau sans fil"
+# L'adresse IPv4 ressemble à : 192.168.x.x ou 10.0.x.x
+```
+
+**Linux :**
+```bash
+# Méthode 1 : Utiliser ip
+ip addr show
+
+# Méthode 2 : Utiliser ifconfig
+ifconfig
+
+# Méthode 3 : Utiliser hostname
+hostname -I
+
+# Chercher l'adresse IP de votre interface réseau (eth0, wlan0, etc.)
+# L'adresse IP ressemble à : 192.168.x.x ou 10.0.x.x
+```
+
+**macOS :**
+```bash
+# Méthode 1 : Utiliser ifconfig
+ifconfig | grep "inet "
+
+# Méthode 2 : Utiliser networksetup
+networksetup -getinfo "Wi-Fi"
+# ou
+networksetup -getinfo "Ethernet"
+
+# Chercher l'adresse IP (généralement sous "IP address")
+# L'adresse IP ressemble à : 192.168.x.x ou 10.0.x.x
+```
+
+#### Configurer le fichier .env
+
+1. Créer un fichier `.env` à la racine du projet (copier depuis `.env.example` si disponible)
+2. Remplacer `your_api_url` par l'adresse IP de votre ordinateur avec le port de l'API backend
+
+Exemple :
+```env
+EXPO_PUBLIC_API_URL=http://192.168.1.100:3000
+EXPO_PUBLIC_APP_NAME=IWAProject
+```
+
+> **Note :** Assurez-vous que votre backend est bien démarré et accessible sur cette adresse IP. Si vous utilisez un port différent, ajustez l'URL en conséquence.
+
+```bash
 # Lancer l'application
 npm start
 ```
@@ -114,54 +146,6 @@ npm run web        # Lancer sur le web
 - Historique des gardes
 - Avis et évaluations
 - Abonnements et paiements
-
----
-
-## 🎨 Design et UX
-
-L'application suit les principes du Material Design avec :
-- Interface intuitive et moderne
-- Navigation fluide entre les écrans
-- Composants réutilisables et cohérents
-- Thème personnalisable
-- Support des modes sombre/clair
-
----
-
-## 🔧 Configuration
-
-### Variables d'environnement
-Créer un fichier `.env` à la racine du projet :
-```
-EXPO_PUBLIC_API_URL=your_api_url
-EXPO_PUBLIC_APP_NAME=IWAProject
-```
-
-### Configuration Expo
-Le fichier `app.json` contient la configuration Expo :
-- Nom de l'application
-- Version
-- Icônes et splash screen
-- Permissions
-
----
-
-## 📚 Documentation
-
-### Composants UI
-Les composants UI sont documentés dans le dossier `src/components/ui/` :
-- `Button` - Boutons personnalisés
-- `Card` - Cartes d'affichage
-- `Input` - Champs de saisie
-- `Badge` - Badges et étiquettes
-- `Icon` - Icônes vectorielles
-- `ImageWithFallback` - Images avec fallback
-
-### Navigation
-L'application utilise React Navigation avec :
-- Bottom Tab Navigation pour les écrans principaux
-- Stack Navigation pour les écrans secondaires
-- Navigation conditionnelle basée sur l'état de l'utilisateur
 
 ---
 
