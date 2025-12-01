@@ -73,7 +73,66 @@ cd IWAProject-Front
 
 # Installer les dépendances
 npm install
+```
 
+### Configuration pour les tests locaux
+
+Si vous testez l'application sur votre ordinateur local, vous devez configurer l'adresse IP de votre machine dans le fichier `.env`.
+
+#### Récupérer l'adresse IP de votre ordinateur
+
+**Windows :**
+```bash
+# Ouvrir PowerShell ou Invite de commandes
+ipconfig
+
+# Chercher la section "Carte réseau Ethernet" ou "Carte réseau sans fil"
+# L'adresse IPv4 ressemble à : 192.168.x.x ou 10.0.x.x
+```
+
+**Linux :**
+```bash
+# Méthode 1 : Utiliser ip
+ip addr show
+
+# Méthode 2 : Utiliser ifconfig
+ifconfig
+
+# Méthode 3 : Utiliser hostname
+hostname -I
+
+# Chercher l'adresse IP de votre interface réseau (eth0, wlan0, etc.)
+# L'adresse IP ressemble à : 192.168.x.x ou 10.0.x.x
+```
+
+**macOS :**
+```bash
+# Méthode 1 : Utiliser ifconfig
+ifconfig | grep "inet "
+
+# Méthode 2 : Utiliser networksetup
+networksetup -getinfo "Wi-Fi"
+# ou
+networksetup -getinfo "Ethernet"
+
+# Chercher l'adresse IP (généralement sous "IP address")
+# L'adresse IP ressemble à : 192.168.x.x ou 10.0.x.x
+```
+
+#### Configurer le fichier .env
+
+1. Créer un fichier `.env` à la racine du projet (copier depuis `.env.example` si disponible)
+2. Remplacer `your_api_url` par l'adresse IP de votre ordinateur avec le port de l'API backend
+
+Exemple :
+```env
+EXPO_PUBLIC_API_URL=http://192.168.1.100:3000
+EXPO_PUBLIC_APP_NAME=IWAProject
+```
+
+> **Note :** Assurez-vous que votre backend est bien démarré et accessible sur cette adresse IP. Si vous utilisez un port différent, ajustez l'URL en conséquence.
+
+```bash
 # Lancer l'application
 npm start
 ```

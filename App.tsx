@@ -102,7 +102,6 @@ const filterListingsData = (
 function MainApp() {
   const { isAuthenticated, isLoading, user, accessToken, isProfileComplete, markProfileAsComplete } = useAuth();
   const { t } = useTranslation();
-  const enableSimulatedLogin = process.env.EXPO_PUBLIC_ENABLE_SIMULATED_LOGIN === 'true';
   const [activeTab, setActiveTab] = useState("home");
   const [currentPage, setCurrentPage] = useState("home");
   const [selectedListing, setSelectedListing] = useState(null);
@@ -251,7 +250,7 @@ function MainApp() {
     return (
       <SafeAreaProvider>
         <StatusBar style="dark" backgroundColor="#ffffff" />
-        <LoginPage allowSimulatedLogin={enableSimulatedLogin} />
+        <LoginPage />
       </SafeAreaProvider>
     );
   }
