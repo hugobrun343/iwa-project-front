@@ -11,7 +11,7 @@ interface SearchBarProps {
 }
 
 export function SearchBar({ 
-  placeholder = "Où cherchez-vous ?", 
+  placeholder = "Rechercher sur GuardHome", 
   onSearch,
   initialValue = ""
 }: SearchBarProps) {
@@ -24,7 +24,6 @@ export function SearchBar({
   return (
     <View style={styles.container}>
       <View style={styles.searchInputWrapper}>
-        <Icon name="location" size={16} color={theme.colors.mutedForeground} style={styles.searchIcon} />
         <Input 
           placeholder={placeholder}
           style={styles.searchInput}

@@ -1,0 +1,42 @@
+{
+  "app": {
+    "loading": "Chargement..."
+  },
+  "nav": {
+    "search": "Recherche",
+    "favorites": "Favoris",
+    "create": "Créer",
+    "messages": "Messages",
+    "profile": "Profil"
+  },
+  "login": {
+    "title": "GuardHome",
+    "subtitle": "Connectez-vous pour accéder à votre espace personnel",
+    "secureTitle": "Connexion sécurisée",
+    "secureDescription": "Utilisez votre compte pour accéder à toutes les fonctionnalités",
+    "connect": "Se connecter",
+    "connecting": "Connexion...",
+    "footer": "En vous connectant, vous acceptez nos conditions d'utilisation",
+    "featureCreate": "Créer et gérer vos annonces",
+    "featureSave": "Sauvegarder vos favoris",
+    "featureChat": "Communiquer avec d'autres utilisateurs",
+    "featureProfile": "Gérer votre profil et vos préférences",
+    "securityNote": "Vos données sont protégées par un système d'authentification sécurisé",
+    "errorTitle": "Erreur",
+    "errorMessage": "Échec de la connexion. Veuillez réessayer."
+  },
+  "settings": {
+    "advancedTitle": "Paramètres avancés",
+    "advancedDescription": "Confidentialité et sécurité",
+    "languageTitle": "Langue de l'application",
+    "languageDescription": "Sélectionnez la langue utilisée dans l'interface.",
+    "languageEnglish": "Anglais",
+    "languageFrench": "Français",
+    "back": "Retour",
+    "languageSelectTitle": "Sélectionner la langue",
+    "searchPlaceholder": "Rechercher une langue",
+    "allLanguages": "Toutes les langues",
+    "continue": "Continuer"
+  }
+}
+

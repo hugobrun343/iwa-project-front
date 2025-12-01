@@ -52,6 +52,8 @@ const iconMap = {
   'arrow-down': 'arrow-down',
   'arrow-up': 'arrow-up',
   'swap-horizontal': 'swap-horizontal',
+  'swap-vertical': 'swap-vertical-outline',
+  trash: 'trash-outline',
   eye: 'eye-outline',
   'ellipsis-vertical': 'ellipsis-vertical',
   star: 'star',
@@ -60,6 +62,7 @@ const iconMap = {
   'log-in': 'log-in-outline',
   'log-out': 'log-out-outline',
   key: 'key-outline',
+  'person-add': 'person-add-outline',
 } as const;
 
 export type IconName = keyof typeof iconMap;

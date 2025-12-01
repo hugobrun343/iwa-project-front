@@ -1,10 +1,18 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import { AuthContextType, AuthProviderProps, User } from '../types/auth';
 import { useAuthActions } from '../hooks/useAuthActions';
+import { isTokenExpiredOrExpiringSoon, isTokenExpired, getTimeUntilExpiration } from '../utils/tokenUtils';
 
 // Configure WebBrowser for better UX
 WebBrowser.maybeCompleteAuthSession();
+
+// Token refresh check interval (check every 60 seconds)
+const TOKEN_CHECK_INTERVAL = 60000;
+// Refresh token if it expires within 60 seconds (1 minute)
+const TOKEN_REFRESH_BUFFER_SECONDS = 60;
+// Minimum time between refreshes (3 minutes) to prevent continuous refresh loops
+const MIN_REFRESH_COOLDOWN_MS = 3 * 60 * 1000;
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -13,6 +21,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [refreshTokenValue, setRefreshTokenValue] = useState<string | null>(null);
+  const [isProfileComplete, setIsProfileComplete] = useState<boolean | null>(null);
+  const [isCheckingProfile, setIsCheckingProfile] = useState(false);
+  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isRefreshingRef = useRef(false);
+  const lastRefreshTimeRef = useRef<number>(0);
 
   const authActions = useAuthActions();
 
@@ -31,11 +44,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(user);
         setAccessToken(tokens.access_token);
         setRefreshTokenValue(tokens.refresh_token);
+        
+        // Check if profile is complete
+        if (user.username) {
+          await checkProfileComplete(user.username, tokens.access_token);
+        }
       }
     } catch (error) {
-      console.error('Auth initialization error:', error);
+      // // console.error('Auth initialization error:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const checkProfileComplete = async (username: string, token: string): Promise<boolean> => {
+    try {
+      setIsCheckingProfile(true);
+      const response = await authActions.checkProfileComplete(username, token);
+      setIsProfileComplete(response);
+      return response;
+    } catch (error) {
+      // // console.error('Error checking profile complete:', error);
+      // If check fails, assume profile is incomplete to be safe
+      setIsProfileComplete(false);
+      return false;
+    } finally {
+      setIsCheckingProfile(false);
     }
   };
 
@@ -47,9 +81,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(user);
         setAccessToken(tokens.access_token);
         setRefreshTokenValue(tokens.refresh_token);
+        
+        // Check if profile is complete
+        if (user.username) {
+          await checkProfileComplete(user.username, tokens.access_token);
+        }
       }
     } catch (error) {
-      console.error('Login error:', error);
+      // console.error('Login error:', error);
     }
   };
 
@@ -61,13 +100,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(user);
         setAccessToken(tokens.access_token);
         setRefreshTokenValue(tokens.refresh_token);
+        
+        // Check if profile is complete
+        if (user.username) {
+          await checkProfileComplete(user.username, tokens.access_token);
+        }
       }
     } catch (error) {
-      console.error('Google login error:', error);
+      // console.error('Google login error:', error);
     }
   };
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await authActions.performLogout();
       
@@ -75,40 +119,123 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(null);
       setAccessToken(null);
       setRefreshTokenValue(null);
+      setIsProfileComplete(null);
     } catch (error) {
-      console.error('Logout error:', error);
+      // console.error('Logout error:', error);
     }
-  };
+  }, [authActions]);
 
-  const refreshToken = async () => {
-    if (!refreshTokenValue) return;
+  const refreshToken = useCallback(async (force = false) => {
+    if (!refreshTokenValue || isRefreshingRef.current) return;
+
+    // Check cooldown period (unless forced or token is actually expired)
+    const timeSinceLastRefresh = Date.now() - lastRefreshTimeRef.current;
+    if (!force && timeSinceLastRefresh < MIN_REFRESH_COOLDOWN_MS) {
+      // Allow refresh if token is actually expired (not just expiring soon)
+      if (accessToken && !isTokenExpired(accessToken)) {
+        const minutesSinceRefresh = Math.floor(timeSinceLastRefresh / 60000);
+        // console.log(`⏸️ Token refresh cooldown active (${minutesSinceRefresh} min ago), skipping...`);
+        return;
+      }
+      // Token is actually expired, allow refresh even during cooldown
+      // console.log('🚨 Token expired, forcing refresh despite cooldown...');
+    }
 
     try {
+      isRefreshingRef.current = true;
       const { user, tokens } = await authActions.performTokenRefresh(refreshTokenValue);
       
       if (user && tokens) {
         setUser(user);
         setAccessToken(tokens.access_token);
         setRefreshTokenValue(tokens.refresh_token);
+        lastRefreshTimeRef.current = Date.now(); // Update last refresh time
+        // console.log('✅ Token refreshed successfully');
       }
     } catch (error) {
-      console.error('Token refresh error:', error);
+      // console.error('Token refresh error:', error);
       await logout();
+    } finally {
+      isRefreshingRef.current = false;
     }
-  };
+  }, [refreshTokenValue, authActions, logout]);
+
+  // Automatic token refresh before expiration
+  useEffect(() => {
+    if (!isAuthenticated || !accessToken) {
+      // Clear interval if not authenticated
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+      return;
+    }
+
+    // Function to check and refresh token if needed
+    const checkAndRefreshToken = async () => {
+      if (isRefreshingRef.current) {
+        return; // Already refreshing, skip this check
+      }
+
+      // Check cooldown period
+      const timeSinceLastRefresh = Date.now() - lastRefreshTimeRef.current;
+      if (timeSinceLastRefresh < MIN_REFRESH_COOLDOWN_MS) {
+        // Still in cooldown, just check token status without refreshing
+        const timeUntilExpiration = getTimeUntilExpiration(accessToken);
+        if (timeUntilExpiration) {
+          const minutesLeft = Math.floor(timeUntilExpiration / 60000);
+          const cooldownMinutesLeft = Math.ceil((MIN_REFRESH_COOLDOWN_MS - timeSinceLastRefresh) / 60000);
+          // console.log(`⏰ Token valid for ${minutesLeft} min, refresh cooldown: ${cooldownMinutesLeft} min left`);
+        }
+        return;
+      }
+
+      if (isTokenExpiredOrExpiringSoon(accessToken, TOKEN_REFRESH_BUFFER_SECONDS)) {
+        // Force refresh if token is actually expired, otherwise respect cooldown
+        const isActuallyExpired = isTokenExpired(accessToken);
+        // console.log(isActuallyExpired ? '🚨 Token expired, refreshing...' : '🔄 Token expiring soon, refreshing...');
+        await refreshToken(isActuallyExpired);
+      } else {
+        const timeUntilExpiration = getTimeUntilExpiration(accessToken);
+        if (timeUntilExpiration) {
+          const minutesLeft = Math.floor(timeUntilExpiration / 60000);
+          // Only log every 5 minutes to reduce noise
+          if (minutesLeft % 5 === 0 || minutesLeft < 5) {
+            // console.log(`⏰ Token valid for ${minutesLeft} more minutes`);
+          }
+        }
+      }
+    };
+
+    // Check immediately
+    checkAndRefreshToken();
+
+    // Set up interval to check periodically
+    refreshIntervalRef.current = setInterval(checkAndRefreshToken, TOKEN_CHECK_INTERVAL);
+
+    // Cleanup on unmount or when dependencies change
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+    };
+  }, [isAuthenticated, accessToken, refreshToken]);
 
   const updateUserProfile = async (updates: Partial<User>) => {
     if (!accessToken) return;
 
     try {
-      const success = await authActions.performUpdateProfile(accessToken, updates);
-      
-      if (success) {
-        setUser(prev => prev ? { ...prev, ...updates } : null);
+      if (user?.username) {
+        await checkProfileComplete(user.username, accessToken);
       }
     } catch (error) {
-      console.error('Update profile error:', error);
+      // console.error('Update profile error:', error);
     }
+  };
+
+  const markProfileAsComplete = () => {
+    setIsProfileComplete(true);
   };
 
   const updateUserAttribute = async (attribute: string, value: any): Promise<boolean> => {
@@ -138,21 +265,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       return success;
     } catch (error) {
-      console.error('Update user attribute error:', error);
+      // console.error('Update user attribute error:', error);
       return false;
     }
   };
 
   const value: AuthContextType = {
     user,
-    isLoading: isLoading || authActions.isLoading,
+    isLoading: isLoading || authActions.isLoading || isCheckingProfile,
     isAuthenticated,
+    accessToken,
+    isProfileComplete,
     login,
     loginWithGoogle,
     logout,
     refreshToken,
     updateUserProfile,
     updateUserAttribute,
+    markProfileAsComplete,
   };
 
   return (
