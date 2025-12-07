@@ -10,6 +10,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useRatingsApi } from '../../hooks/api/useRatingsApi';
 import { useUserApi } from '../../hooks/api/useUserApi';
 import { PublicUserDto, RatingDto } from '../../types/api';
+import { useTranslation } from 'react-i18next';
 
 interface ReviewsPageProps {
   onBack: () => void;
@@ -20,6 +21,7 @@ type ReceivedReview = RatingDto & { author?: PublicUserDto; commentaire?: string
 type GivenReview = RatingDto & { recipient?: PublicUserDto; commentaire?: string; dateAvis?: string; note?: number };
 
 export function ReviewsPage({ onBack }: ReviewsPageProps) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'received' | 'given'>('received');
   const [receivedReviews, setReceivedReviews] = useState<ReceivedReview[]>([]);
   const [givenReviews, setGivenReviews] = useState<GivenReview[]>([]);
@@ -31,8 +33,8 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
   const { getUserByUsername } = useUserApi();
 
   const tabs = [
-    { id: 'received' as const, label: 'Reçus' },
-    { id: 'given' as const, label: 'Donnés' },
+    { id: 'received' as const, label: t('reviews.tabs.received') },
+    { id: 'given' as const, label: t('reviews.tabs.given') },
   ];
 
   const normalizeRating = (rating: ApiRating): RatingDto => ({
@@ -45,11 +47,11 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
 
   const formatReviewDate = (date?: string) => {
     if (!date) {
-      return 'Date inconnue';
+      return t('common.unknownDate');
     }
     const parsed = new Date(date);
     if (Number.isNaN(parsed.getTime())) {
-      return 'Date inconnue';
+      return t('common.unknownDate');
     }
     return parsed.toLocaleDateString('fr-FR', {
       day: 'numeric',
@@ -60,10 +62,10 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
 
   const getDisplayName = (profile?: PublicUserDto, fallback?: string) => {
     if (!profile) {
-      return fallback ?? 'Utilisateur';
+      return fallback ?? t('common.user');
     }
     const fullName = `${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim();
-    return fullName || profile.username || fallback || 'Utilisateur';
+    return fullName || profile.username || fallback || t('common.user');
   };
 
   const renderAvatar = (photoUrl?: string) => {
@@ -157,7 +159,7 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
         setGivenReviews(givenEnriched as GivenReview[]);
       } catch (fetchError) {
         console.error('Erreur lors du chargement des avis:', fetchError);
-        setError("Impossible de charger les avis. Veuillez réessayer plus tard.");
+        setError(t('reviews.error'));
         setReceivedReviews([]);
         setGivenReviews([]);
       } finally {
@@ -187,7 +189,7 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
                 {getDisplayName(review.author, review.authorId)}
               </Text>
               <Text style={styles.reviewDate}>
-                Reçu le {formatReviewDate(review.createdAt || review.dateAvis)}
+                {t('reviews.review.receivedOn', { date: formatReviewDate(review.createdAt || review.dateAvis) })}
               </Text>
             </View>
           </View>
@@ -206,7 +208,7 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
         </View>
 
         <Text style={styles.reviewComment}>
-          {review.comment || review.commentaire || "Aucun commentaire fourni."}
+          {review.comment || review.commentaire || t('reviews.review.noComment')}
         </Text>
       </CardContent>
     </Card>
@@ -223,14 +225,14 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
                 {getDisplayName(review.recipient, review.recipientId)}
               </Text>
               <Text style={styles.reviewDate}>
-                Donné le {formatReviewDate(review.createdAt || review.dateAvis)}
+                {t('reviews.review.givenOn', { date: formatReviewDate(review.createdAt || review.dateAvis) })}
               </Text>
             </View>
           </View>
         </View>
 
         <View style={styles.givenRating}>
-          <Text style={styles.ratingLabel}>Votre évaluation :</Text>
+          <Text style={styles.ratingLabel}>{t('reviews.review.yourRating')}</Text>
           <View style={styles.starsContainer}>
             {[...Array(5)].map((_, i) => (
               <Icon 
@@ -244,13 +246,13 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
         </View>
 
         <Text style={styles.reviewComment}>
-          {review.comment || review.commentaire || "Aucun commentaire ajouté."}
+          {review.comment || review.commentaire || t('reviews.review.noCommentAdded')}
         </Text>
 
         <View style={styles.reviewActions}>
           <Button variant="ghost" size="sm" style={styles.actionButton}>
             <Icon name="create" size={16} color={theme.colors.primary} />
-            <Text style={styles.actionText}>Modifier</Text>
+            <Text style={styles.actionText}>{t('reviews.review.edit')}</Text>
           </Button>
         </View>
       </CardContent>
@@ -261,7 +263,7 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
     if (isLoading) {
       return (
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Chargement des avis…</Text>
+          <Text style={styles.loadingText}>{t('reviews.loading')}</Text>
         </View>
       );
     }
@@ -271,7 +273,7 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
         <Card style={styles.emptyCard}>
           <CardContent style={styles.emptyContent}>
             <Icon name="help-circle" size={48} color={theme.colors.destructive} />
-            <Text style={styles.emptyTitle}>Impossible de charger les avis</Text>
+            <Text style={styles.emptyTitle}>{t('reviews.error')}</Text>
             <Text style={styles.emptyText}>{error}</Text>
           </CardContent>
         </Card>
@@ -288,9 +290,9 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
           <Card style={styles.emptyCard}>
             <CardContent style={styles.emptyContent}>
               <Icon name="Star" size={48} color={theme.colors.mutedForeground} />
-              <Text style={styles.emptyTitle}>Aucun avis reçu</Text>
+              <Text style={styles.emptyTitle}>{t('reviews.empty.noReceived')}</Text>
               <Text style={styles.emptyText}>
-                Les avis de vos clients apparaîtront ici après vos premières gardes.
+                {t('reviews.empty.noReceivedDesc')}
               </Text>
             </CardContent>
           </Card>
@@ -304,9 +306,9 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
           <Card style={styles.emptyCard}>
             <CardContent style={styles.emptyContent}>
               <Icon name="create" size={48} color={theme.colors.mutedForeground} />
-              <Text style={styles.emptyTitle}>Aucun avis donné</Text>
+              <Text style={styles.emptyTitle}>{t('reviews.empty.noGiven')}</Text>
               <Text style={styles.emptyText}>
-                Vos évaluations des propriétaires apparaîtront ici.
+                {t('reviews.empty.noGivenDesc')}
               </Text>
             </CardContent>
           </Card>
@@ -319,7 +321,7 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
   return (
     <View style={styles.container}>
       <PageHeader 
-        title="Mes avis"
+        title={t('reviews.title')}
         showBackButton={true}
         onBack={onBack}
       />
@@ -328,21 +330,21 @@ export function ReviewsPage({ onBack }: ReviewsPageProps) {
         {/* Statistiques rapides */}
         <Card style={styles.statsCard}>
           <CardContent style={styles.statsContent}>
-            <Text style={styles.statsTitle}>Votre réputation</Text>
+            <Text style={styles.statsTitle}>{t('reviews.stats.title')}</Text>
             <View style={styles.statsGrid}>
               <View style={styles.statItem}>
                 <Text style={styles.statNumber}>
                   {isLoading ? '--' : averageRating}
                 </Text>
-                <Text style={styles.statLabel}>Note moyenne</Text>
+                <Text style={styles.statLabel}>{t('reviews.stats.averageRating')}</Text>
               </View>
               <View style={styles.statItem}>
                 <Text style={styles.statNumber}>{isLoading ? '--' : receivedReviews.length}</Text>
-                <Text style={styles.statLabel}>Avis reçus</Text>
+                <Text style={styles.statLabel}>{t('reviews.stats.received')}</Text>
               </View>
               <View style={styles.statItem}>
                 <Text style={styles.statNumber}>{isLoading ? '--' : givenReviews.length}</Text>
-                <Text style={styles.statLabel}>Avis donnés</Text>
+                <Text style={styles.statLabel}>{t('reviews.stats.given')}</Text>
               </View>
             </View>
           </CardContent>

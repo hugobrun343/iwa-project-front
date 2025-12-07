@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { PageHeader } from '../ui/PageHeader';
 import { SearchBar } from '../ui/SearchBar';
@@ -6,19 +6,13 @@ import { Filters } from '../ui/Filters';
 import { theme } from '../../styles/theme';
 import { useAnnouncementsApi } from '../../hooks/api/useAnnouncementsApi';
 import { DateRange } from '../../types/filters';
+import { useTranslation } from 'react-i18next';
 
 interface FilterOption {
   value: string;
   label: string;
   count?: number;
 }
-
-const DEFAULT_FILTERS: FilterOption[] = [
-  { value: "animaux", label: "Animaux" },
-  { value: "plantes", label: "Plantes" },
-  { value: "logement", label: "Logement" },
-  { value: "weekend", label: "Week-end" },
-];
 
 interface SearchHeaderProps {
   onSearch?: (query: string) => void;
@@ -37,8 +31,17 @@ export function SearchHeader({
   initialDateRange,
   initialSearchQuery
 }: SearchHeaderProps) {
+  const { t } = useTranslation();
   const { listCareTypes } = useAnnouncementsApi();
-  const [filterOptions, setFilterOptions] = useState<FilterOption[]>(DEFAULT_FILTERS);
+  
+  const defaultFilters = useMemo<FilterOption[]>(() => [
+    { value: "animaux", label: t('search.filters.animals') },
+    { value: "plantes", label: t('search.filters.plants') },
+    { value: "logement", label: t('search.filters.housing') },
+    { value: "weekend", label: t('search.filters.weekend') },
+  ], [t]);
+
+  const [filterOptions, setFilterOptions] = useState<FilterOption[]>(defaultFilters);
 
   useEffect(() => {
     let isMounted = true;
@@ -57,12 +60,12 @@ export function SearchHeader({
           }));
           setFilterOptions(formatted);
         } else {
-          setFilterOptions(DEFAULT_FILTERS);
+          setFilterOptions(defaultFilters);
         }
       } catch (error) {
         console.error('Error fetching care types:', error);
         if (isMounted) {
-          setFilterOptions(DEFAULT_FILTERS);
+          setFilterOptions(defaultFilters);
         }
       }
     };
@@ -72,19 +75,19 @@ export function SearchHeader({
     return () => {
       isMounted = false;
     };
-  }, [listCareTypes]);
+  }, [listCareTypes, defaultFilters]);
 
   return (
     <>
       <PageHeader 
-        title="Rechercher"
+        title={t('search.title')}
         icon="Search"
       />
       
       <View style={styles.searchSection}>
         {/* Search Bar */}
         <SearchBar 
-          placeholder="Rechercher sur GuardHome"
+          placeholder={t('search.placeholder')}
           onSearch={onSearch}
           initialValue={initialSearchQuery}
         />

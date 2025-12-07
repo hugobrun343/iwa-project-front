@@ -73,7 +73,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
   const handlePaymentSuccess = () => {
     setIsProcessingPayment(false);
     setClientSecret(undefined);
-    Alert.alert('Succès', 'Votre abonnement Premium a été activé avec succès !');
+    Alert.alert(t('common.success'), t('subscription.errors.success'));
   };
   
   // useSubscribe will automatically present payment sheet when clientSecret is set
@@ -102,11 +102,11 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
 
   const formatDate = (value?: string) => {
     if (!value) {
-      return 'Date inconnue';
+      return t('common.unknownDate');
     }
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) {
-      return 'Date inconnue';
+      return t('common.unknownDate');
     }
     return parsed.toLocaleDateString('fr-FR', {
       day: 'numeric',
@@ -193,7 +193,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
     const first = profileDetails?.firstName ?? user?.firstName ?? '';
     const last = profileDetails?.lastName ?? user?.lastName ?? '';
     const combined = `${first} ${last}`.trim();
-    return combined || user?.fullName || user?.username || 'Utilisateur';
+    return combined || user?.fullName || user?.username || t('common.user');
   }, [profileDetails, user]);
 
   const displayUsername = useMemo(() => {
@@ -289,7 +289,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
       if (!customerId) {
         const userEmail = profileDetails?.email ?? user?.email ?? '';
         if (!userEmail) {
-          Alert.alert('Erreur', 'Veuillez d\'abord compléter votre profil avec une adresse email.');
+          Alert.alert(t('common.error'), t('subscription.errors.completeEmail'));
           setIsProcessingPayment(false);
           return;
         }
@@ -297,7 +297,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
         // Get name and phone from profile
         const firstName = profileDetails?.firstName ?? user?.firstName ?? '';
         const lastName = profileDetails?.lastName ?? user?.lastName ?? '';
-        const fullName = `${firstName} ${lastName}`.trim() || displayName || user?.username || 'Utilisateur';
+        const fullName = `${firstName} ${lastName}`.trim() || displayName || user?.username || t('common.user');
         const phone = profileDetails?.phoneNumber ?? user?.telephone ?? '';
         
         // Create customer directly with email, name, and phone
@@ -324,10 +324,10 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
             customerId = json.customerId;
             setCustomerId(json.customerId); // Update state for useUserSubscription hook
           } else {
-            throw new Error(json.message || 'Impossible de créer le compte client');
+            throw new Error(json.message || t('subscription.errors.errorCreatingCustomer'));
           }
         } catch (error: any) {
-          throw new Error(error.message || 'Impossible de créer le compte client');
+          throw new Error(error.message || t('subscription.errors.errorCreatingCustomer'));
         }
       }
 
@@ -342,11 +342,11 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
       } else {
         // Free subscription or already paid
         setIsProcessingPayment(false);
-        Alert.alert('Succès', 'Votre abonnement a été activé avec succès !');
+        Alert.alert(t('common.success'), t('subscription.errors.success'));
       }
     } catch (error: any) {
       console.error('Subscription error:', error);
-      Alert.alert('Erreur', error.message || 'Une erreur est survenue lors de l\'abonnement.');
+      Alert.alert(t('common.error'), error.message || t('subscription.errors.errorSubscribing'));
       setIsProcessingPayment(false);
       setClientSecret(undefined);
     }
@@ -355,36 +355,36 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
   const menuItems = [
     {
       icon: "Home",
-      label: "Mes annonces",
-      description: "Gérer vos demandes de garde",
+      label: t('profile.activities.myListings'),
+      description: t('profile.activities.myListingsDesc'),
       count: userStats.listingsCreated,
       action: () => onNavigate?.("my-listings")
     },
     {
       icon: "Person",
-      label: "Candidatures reçues",
-      description: "Gérer les candidatures reçues",
+      label: t('profile.activities.receivedApplications'),
+      description: t('profile.activities.receivedApplicationsDesc'),
       count: undefined,
       action: handleOpenApplicationsModal
     },
     {
       icon: "Document",
-      label: "Mes candidatures",
-      description: "Voir mes candidatures envoyées",
+      label: t('profile.activities.myApplications'),
+      description: t('profile.activities.myApplicationsDesc'),
       count: undefined,
       action: () => setShowMyApplicationsPanel(true)
     },
     {
       icon: "Clock",
-      label: "Mes gardes",
-      description: "Vos gardes passées et à venir",
+      label: t('profile.activities.myGuards'),
+      description: t('profile.activities.myGuardsDesc'),
       count: userStats.guardsCompleted,
       action: () => onNavigate?.("guard-history")
     },
     {
       icon: "Star",
-      label: "Mes avis",
-      description: "Évaluations reçues et données",
+      label: t('profile.activities.myReviews'),
+      description: t('profile.activities.myReviewsDesc'),
       count: userStats.reviewCount,
       action: () => onNavigate?.("reviews")
     }
@@ -393,20 +393,20 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
   const settingsItems = [
     {
       icon: "Star",
-      label: "Abonnement",
+      label: t('profile.settings.subscription'),
       description: isPremium 
-        ? "Plan Premium actif" 
+        ? t('profile.settings.subscriptionPremium') 
         : cancelAtPeriodEnd 
-        ? "Premium - Annulation programmée"
-        : "Plan Gratuit - Passer au Premium",
-      badge: isPremium ? "Premium" : cancelAtPeriodEnd ? "Bientôt expiré" : "Gratuit",
+        ? t('profile.settings.subscriptionCancelling')
+        : t('profile.settings.subscriptionFree'),
+      badge: isPremium ? t('profile.settings.subscriptionBadgePremium') : cancelAtPeriodEnd ? t('profile.settings.subscriptionBadgeExpiring') : t('profile.settings.subscriptionBadgeFree'),
       action: handlePremiumSubscription,
       isLoading: isProcessingPayment || subscriptionLoading || registerLoading
     },
     {
       icon: "CreditCard",
-      label: "Paiements",
-      description: "Cartes et facturation",
+      label: t('profile.settings.payments'),
+      description: t('profile.settings.paymentsDesc'),
       action: () => onNavigate?.("payments")
     }
   ];
@@ -414,7 +414,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
   return (
     <View style={styles.container}>
       <PageHeader 
-        title="Profil"
+        title={t('profile.title')}
         icon="person"
         rightButton={{
           icon: "Settings",
@@ -441,24 +441,24 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                 {hasActiveSubscription && (
                   <View style={styles.premiumBadge}>
                     <Icon name="Star" size={12} color={theme.colors.primary} />
-                    <Text style={styles.premiumBadgeText}>Premium</Text>
+                    <Text style={styles.premiumBadgeText}>{t('profile.settings.subscriptionBadgePremium')}</Text>
                   </View>
                 )}
               </View>
               {displayUsername ? <Text style={styles.profileUsername}>@{displayUsername}</Text> : null}
               <Text style={styles.memberSince}>
-                Membre depuis {memberSinceLabel}
+                {t('profile.memberSince', { date: memberSinceLabel })}
               </Text>
               <View style={styles.profileMeta}>
                 <View style={styles.ratingContainer}>
                   <Icon name="Star" size={16} color="#fbbf24" />
                   <Text style={styles.ratingText}>{userStats.rating}</Text>
-                  <Text style={styles.reviewCount}>({userStats.reviewCount} avis)</Text>
+                  <Text style={styles.reviewCount}>({userStats.reviewCount} {t('listing.card.reviews')})</Text>
                 </View>
                 {user?.isVerified && (
                   <View style={styles.verifiedBadge}>
                     <Icon name="ShieldCheckmark" size={12} color={theme.colors.secondaryForeground} />
-                    <Text style={styles.verifiedText}>Vérifiée</Text>
+                    <Text style={styles.verifiedText}>{t('listing.detail.verified')}</Text>
                   </View>
                 )}
               </View>
@@ -469,15 +469,15 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{userStats.listingsCreated}</Text>
-              <Text style={styles.statLabel}>Annonces</Text>
+              <Text style={styles.statLabel}>{t('profile.stats.listings')}</Text>
             </View>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{userStats.guardsCompleted}</Text>
-              <Text style={styles.statLabel}>Gardes</Text>
+              <Text style={styles.statLabel}>{t('profile.stats.guards')}</Text>
             </View>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{userStats.rating}</Text>
-              <Text style={styles.statLabel}>Note moyenne</Text>
+              <Text style={styles.statLabel}>{t('profile.stats.averageRating')}</Text>
             </View>
           </View>
 
@@ -485,7 +485,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
           {/* My Activities */}
           <Card style={styles.sectionCard}>
             <CardContent>
-              <Text style={styles.sectionTitle}>Mes activités</Text>
+              <Text style={styles.sectionTitle}>{t('profile.activities.title')}</Text>
               <View style={styles.menuList}>
                 {menuItems.map((item, index) => (
                   <TouchableOpacity 
@@ -519,7 +519,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
           {/* Settings */}
           <Card style={styles.sectionCard}>
             <CardContent>
-              <Text style={styles.sectionTitle}>Paramètres</Text>
+              <Text style={styles.sectionTitle}>{t('profile.settings.title')}</Text>
               <View style={styles.menuList}>
                 {settingsItems.map((item, index) => (
                   <TouchableOpacity 
@@ -546,9 +546,9 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                             <Badge 
                               variant="outline" 
                               style={
-                                item.badge === "Gratuit" 
+                                item.badge === t('profile.settings.subscriptionBadgeFree') 
                                   ? StyleSheet.flatten([styles.settingsBadge, styles.freeBadge]) 
-                                  : item.badge === "Premium"
+                                  : item.badge === t('profile.settings.subscriptionBadgePremium')
                                   ? StyleSheet.flatten([styles.settingsBadge, styles.premiumBadge])
                                   : StyleSheet.flatten([styles.settingsBadge, styles.verifiedSettingsBadge])
                               }
@@ -576,7 +576,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
           {/* Support */}
           <Card style={styles.sectionCard}>
             <CardContent>
-              <Text style={styles.sectionTitle}>Support</Text>
+              <Text style={styles.sectionTitle}>{t('profile.support.title')}</Text>
               <View style={styles.menuList}>
                 
                 <TouchableOpacity 
@@ -601,7 +601,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
           {/* Recent Activity */}
           <Card style={styles.sectionCard}>
             <CardContent>
-              <Text style={styles.sectionTitle}>Activité récente</Text>
+              <Text style={styles.sectionTitle}>{t('profile.recentActivity.title')}</Text>
               <View style={styles.activityList}>
                 {recentReviews.length > 0 ? (
                   recentReviews.map((review) => {
@@ -614,10 +614,10 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                         </View>
                         <View style={styles.activityContent}>
                           <Text style={styles.activityTitle}>
-                            {score.toFixed(1)} étoiles de {review.authorId}
+                            {t('profile.recentActivity.starsFrom', { score: score.toFixed(1), author: review.authorId })}
                           </Text>
                           <Text style={styles.activityDescription}>
-                            Reçu le {displayDate}
+                            {t('profile.recentActivity.receivedOn', { date: displayDate })}
                           </Text>
                           {review.comment ? (
                             <Text style={styles.activityComment}>{review.comment}</Text>
@@ -632,9 +632,9 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                       <Icon name="help-circle" size={16} color={theme.colors.mutedForeground} />
                     </View>
                     <View style={styles.activityContent}>
-                      <Text style={styles.activityTitle}>Aucun avis pour le moment</Text>
+                      <Text style={styles.activityTitle}>{t('profile.recentActivity.noReviews')}</Text>
                       <Text style={styles.activityDescription}>
-                        Vos avis reçus apparaîtront ici dès qu&apos;un client vous évaluera.
+                        {t('profile.recentActivity.reviewsWillAppear')}
                       </Text>
                     </View>
                   </View>
@@ -652,14 +652,14 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                 onPress={logout}
               >
                 <Icon name="log-out" size={20} color={theme.colors.destructive} />
-                <Text style={styles.logoutText}>Se déconnecter</Text>
+                <Text style={styles.logoutText}>{t('profile.logout')}</Text>
               </Button>
             </CardContent>
           </Card>
 
           {/* Version */}
           <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>GuardHome v1.2.0</Text>
+            <Text style={styles.versionText}>{t('profile.version')}</Text>
           </View>
         </View>
       </ScrollView>
@@ -674,7 +674,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Sélectionner une annonce</Text>
+              <Text style={styles.modalTitle}>{t('profile.modals.selectAnnouncement')}</Text>
               <TouchableOpacity
                 onPress={() => setShowApplicationsModal(false)}
                 style={styles.modalCloseButton}
@@ -687,14 +687,14 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
               {isLoadingAnnouncements ? (
                 <View style={styles.modalLoadingContainer}>
                   <ActivityIndicator size="large" color={theme.colors.primary} />
-                  <Text style={styles.modalLoadingText}>Chargement des annonces...</Text>
+                  <Text style={styles.modalLoadingText}>{t('profile.modals.loadingAnnouncements')}</Text>
                 </View>
               ) : userAnnouncements.length === 0 ? (
                 <View style={styles.modalEmptyState}>
                   <Icon name="Home" size={64} color={theme.colors.mutedForeground} />
-                  <Text style={styles.modalEmptyTitle}>Aucune annonce</Text>
+                  <Text style={styles.modalEmptyTitle}>{t('profile.modals.noAnnouncements')}</Text>
                   <Text style={styles.modalEmptyDescription}>
-                    Vous n'avez pas encore créé d'annonce.
+                    {t('profile.modals.noAnnouncementsDesc')}
                   </Text>
                 </View>
               ) : (

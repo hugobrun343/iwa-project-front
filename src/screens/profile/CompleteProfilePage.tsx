@@ -11,12 +11,14 @@ import { theme } from '../../styles/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { useUserApi } from '../../hooks/api/useUserApi';
 import { LabelDto } from '../../types/api';
+import { useTranslation } from 'react-i18next';
 
 interface CompleteProfilePageProps {
   onComplete?: () => void;
 }
 
 export function CompleteProfilePage({ onComplete }: CompleteProfilePageProps) {
+  const { t } = useTranslation();
   const { user, accessToken, updateUserProfile } = useAuth();
   const { 
     getMyProfile, 
@@ -156,32 +158,32 @@ export function CompleteProfilePage({ onComplete }: CompleteProfilePageProps) {
   const handleSave = async () => {
     // Validate required fields according to backend validation
     if (!profile.firstName || !profile.firstName.trim() || !profile.lastName || !profile.lastName.trim()) {
-      Alert.alert('Champs requis', 'Veuillez remplir le prénom et le nom.');
+      Alert.alert(t('completeProfile.errors.requiredFields'), t('completeProfile.errors.fillFirstNameLastName'));
       return;
     }
 
     if (!profile.phoneNumber || !profile.phoneNumber.trim()) {
-      Alert.alert('Champs requis', 'Veuillez remplir votre numéro de téléphone.');
+      Alert.alert(t('completeProfile.errors.requiredFields'), t('completeProfile.errors.fillPhone'));
       return;
     }
 
     if (!profile.location || !profile.location.trim()) {
-      Alert.alert('Champs requis', 'Veuillez remplir votre localisation.');
+      Alert.alert(t('completeProfile.errors.requiredFields'), t('completeProfile.errors.fillLocation'));
       return;
     }
 
     if (selectedLanguages.length === 0) {
-      Alert.alert('Champs requis', 'Veuillez sélectionner au moins une langue.');
+      Alert.alert(t('completeProfile.errors.requiredFields'), t('completeProfile.errors.selectLanguage'));
       return;
     }
 
     if (selectedSpecialisations.length === 0) {
-      Alert.alert('Champs requis', 'Veuillez sélectionner au moins une spécialisation.');
+      Alert.alert(t('completeProfile.errors.requiredFields'), t('completeProfile.errors.selectSpecialisation'));
       return;
     }
 
     if (!user || !user.username) {
-      Alert.alert('Erreur', 'Informations utilisateur manquantes.');
+      Alert.alert(t('common.error'), t('completeProfile.errors.missingUserInfo'));
       return;
     }
 
@@ -232,21 +234,21 @@ export function CompleteProfilePage({ onComplete }: CompleteProfilePageProps) {
           description: profile.description,
         });
 
-        Alert.alert('Succès', 'Votre profil a été complété avec succès !', [
+        Alert.alert(t('common.success'), t('completeProfile.errors.success'), [
           {
-            text: 'OK',
+            text: t('common.ok'),
             onPress: () => {
               onComplete?.();
             },
           },
         ]);
       } else {
-        Alert.alert('Erreur', 'Échec de la sauvegarde du profil.');
+        Alert.alert(t('common.error'), t('completeProfile.errors.errorSaving'));
       }
     } catch (error: any) {
       console.error('Error saving profile:', error);
-      const errorMessage = error?.message || error?.data?.message || 'Échec de la sauvegarde du profil.';
-      Alert.alert('Erreur', errorMessage);
+      const errorMessage = error?.message || error?.data?.message || t('completeProfile.errors.errorSaving');
+      Alert.alert(t('common.error'), errorMessage);
     } finally {
       setIsSaving(false);
     }
@@ -273,7 +275,7 @@ export function CompleteProfilePage({ onComplete }: CompleteProfilePageProps) {
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={styles.loadingText}>Chargement de votre profil...</Text>
+          <Text style={styles.loadingText}>{t('completeProfile.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -286,17 +288,17 @@ export function CompleteProfilePage({ onComplete }: CompleteProfilePageProps) {
           <CardContent style={styles.cardContent}>
             <View style={styles.header}>
               <Icon name="person-add" size={48} color={theme.colors.primary} />
-              <Text style={styles.title}>Complétez votre profil</Text>
+              <Text style={styles.title}>{t('completeProfile.title')}</Text>
               <Text style={styles.subtitle}>
-                Pour utiliser toutes les fonctionnalités de l'application, veuillez compléter votre profil.
+                {t('completeProfile.subtitle')}
               </Text>
             </View>
 
             <View style={styles.form}>
               <View style={styles.inputGroup}>
-                <Label required>Prénom</Label>
+                <Label required>{t('completeProfile.fields.firstName')}</Label>
                 <Input
-                  placeholder="Votre prénom"
+                  placeholder={t('completeProfile.fields.firstNamePlaceholder')}
                   value={profile.firstName}
                   onChangeText={(text) => setProfile({ ...profile, firstName: text })}
                   style={styles.input}
@@ -304,9 +306,9 @@ export function CompleteProfilePage({ onComplete }: CompleteProfilePageProps) {
               </View>
 
               <View style={styles.inputGroup}>
-                <Label required>Nom</Label>
+                <Label required>{t('completeProfile.fields.lastName')}</Label>
                 <Input
-                  placeholder="Votre nom"
+                  placeholder={t('completeProfile.fields.lastNamePlaceholder')}
                   value={profile.lastName}
                   onChangeText={(text) => setProfile({ ...profile, lastName: text })}
                   style={styles.input}
@@ -314,9 +316,9 @@ export function CompleteProfilePage({ onComplete }: CompleteProfilePageProps) {
               </View>
 
               <View style={styles.inputGroup}>
-                <Label>Email</Label>
+                <Label>{t('completeProfile.fields.email')}</Label>
                 <Input
-                  placeholder="votre.email@exemple.com"
+                  placeholder={t('completeProfile.fields.emailPlaceholder')}
                   value={profile.email}
                   onChangeText={(text) => setProfile({ ...profile, email: text })}
                   keyboardType="email-address"
@@ -327,9 +329,9 @@ export function CompleteProfilePage({ onComplete }: CompleteProfilePageProps) {
               </View>
 
               <View style={styles.inputGroup}>
-                <Label required>Téléphone</Label>
+                <Label required>{t('completeProfile.fields.phone')}</Label>
                 <Input
-                  placeholder="06 12 34 56 78"
+                  placeholder={t('completeProfile.fields.phonePlaceholder')}
                   value={profile.phoneNumber}
                   onChangeText={(text) => setProfile({ ...profile, phoneNumber: text })}
                   keyboardType="phone-pad"
@@ -338,9 +340,9 @@ export function CompleteProfilePage({ onComplete }: CompleteProfilePageProps) {
               </View>
 
               <View style={styles.inputGroup}>
-                <Label required>Localisation</Label>
+                <Label required>{t('completeProfile.fields.location')}</Label>
                 <Input
-                  placeholder="Paris, France"
+                  placeholder={t('completeProfile.fields.locationPlaceholder')}
                   value={profile.location}
                   onChangeText={(text) => setProfile({ ...profile, location: text })}
                   style={styles.input}
@@ -348,9 +350,9 @@ export function CompleteProfilePage({ onComplete }: CompleteProfilePageProps) {
               </View>
 
               <View style={styles.inputGroup}>
-                <Label>Description</Label>
+                <Label>{t('completeProfile.fields.description')}</Label>
                 <Textarea
-                  placeholder="Parlez-nous de vous..."
+                  placeholder={t('completeProfile.fields.descriptionPlaceholder')}
                   value={profile.description}
                   onChangeText={(text) => setProfile({ ...profile, description: text })}
                   rows={4}
@@ -359,15 +361,15 @@ export function CompleteProfilePage({ onComplete }: CompleteProfilePageProps) {
               </View>
 
               <View style={styles.inputGroup}>
-                <Label required>Langues parlées</Label>
+                <Label required>{t('completeProfile.fields.languages')}</Label>
                 <TouchableOpacity
                   style={styles.selectTrigger}
                   onPress={() => setLanguagesModalVisible(true)}
                 >
                   <Text style={[styles.selectText, selectedLanguages.length === 0 && styles.placeholder]}>
                     {selectedLanguages.length > 0 
-                      ? `${selectedLanguages.length} langue${selectedLanguages.length > 1 ? 's' : ''} sélectionnée${selectedLanguages.length > 1 ? 's' : ''}`
-                      : 'Sélectionnez vos langues'}
+                      ? t(selectedLanguages.length === 1 ? 'completeProfile.fields.languagesSelected' : 'completeProfile.fields.languagesSelected_plural', { count: selectedLanguages.length })
+                      : t('completeProfile.fields.languagesPlaceholder')}
                   </Text>
                   <Icon name="chevron-forward" size={20} color={theme.colors.mutedForeground} />
                 </TouchableOpacity>
@@ -389,15 +391,15 @@ export function CompleteProfilePage({ onComplete }: CompleteProfilePageProps) {
               </View>
 
               <View style={styles.inputGroup}>
-                <Label required>Spécialisations</Label>
+                <Label required>{t('completeProfile.fields.specialisations')}</Label>
                 <TouchableOpacity
                   style={styles.selectTrigger}
                   onPress={() => setSpecialisationsModalVisible(true)}
                 >
                   <Text style={[styles.selectText, selectedSpecialisations.length === 0 && styles.placeholder]}>
                     {selectedSpecialisations.length > 0 
-                      ? `${selectedSpecialisations.length} spécialisation${selectedSpecialisations.length > 1 ? 's' : ''} sélectionnée${selectedSpecialisations.length > 1 ? 's' : ''}`
-                      : 'Sélectionnez vos spécialisations'}
+                      ? t(selectedSpecialisations.length === 1 ? 'completeProfile.fields.specialisationsSelected' : 'completeProfile.fields.specialisationsSelected_plural', { count: selectedSpecialisations.length })
+                      : t('completeProfile.fields.specialisationsPlaceholder')}
                   </Text>
                   <Icon name="chevron-forward" size={20} color={theme.colors.mutedForeground} />
                 </TouchableOpacity>
@@ -427,10 +429,10 @@ export function CompleteProfilePage({ onComplete }: CompleteProfilePageProps) {
                 {isSaving ? (
                   <View style={styles.buttonContent}>
                     <ActivityIndicator size="small" color="#ffffff" />
-                    <Text style={styles.buttonText}>Enregistrement...</Text>
+                    <Text style={styles.buttonText}>{t('completeProfile.actions.saving')}</Text>
                   </View>
                 ) : (
-                  <Text style={styles.buttonText}>Enregistrer et continuer</Text>
+                  <Text style={styles.buttonText}>{t('completeProfile.actions.save')}</Text>
                 )}
               </Button>
             </View>
@@ -448,7 +450,7 @@ export function CompleteProfilePage({ onComplete }: CompleteProfilePageProps) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Sélectionnez vos langues</Text>
+              <Text style={styles.modalTitle}>{t('completeProfile.modals.selectLanguages')}</Text>
               <TouchableOpacity
                 onPress={() => setLanguagesModalVisible(false)}
                 style={styles.modalCloseButton}
@@ -481,7 +483,7 @@ export function CompleteProfilePage({ onComplete }: CompleteProfilePageProps) {
                 onPress={() => setLanguagesModalVisible(false)}
                 style={styles.modalButton}
               >
-                <Text style={styles.buttonText}>Valider</Text>
+                <Text style={styles.buttonText}>{t('completeProfile.modals.validate')}</Text>
               </Button>
             </View>
           </View>
@@ -498,7 +500,7 @@ export function CompleteProfilePage({ onComplete }: CompleteProfilePageProps) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Sélectionnez vos spécialisations</Text>
+              <Text style={styles.modalTitle}>{t('completeProfile.modals.selectSpecialisations')}</Text>
               <TouchableOpacity
                 onPress={() => setSpecialisationsModalVisible(false)}
                 style={styles.modalCloseButton}
@@ -531,7 +533,7 @@ export function CompleteProfilePage({ onComplete }: CompleteProfilePageProps) {
                 onPress={() => setSpecialisationsModalVisible(false)}
                 style={styles.modalButton}
               >
-                <Text style={styles.buttonText}>Valider</Text>
+                <Text style={styles.buttonText}>{t('completeProfile.modals.validate')}</Text>
               </Button>
             </View>
           </View>

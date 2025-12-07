@@ -15,6 +15,7 @@ import { useChatApi } from '../../hooks/api/useChatApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { PublicUserDto, RatingDto } from '../../types/api';
 import { Alert } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -37,6 +38,7 @@ interface ListingDetailPageProps {
 }
 
 export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailPageProps) {
+  const { t } = useTranslation();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isLiked, setIsLiked] = useState(listing.isLiked || false);
   const [owner, setOwner] = useState<PublicUserDto | null>(null);
@@ -226,10 +228,10 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
 
   const getDisplayName = (profile?: PublicUserDto, fallback?: string) => {
     if (!profile) {
-      return fallback || 'Utilisateur';
+      return fallback || t('listing.detail.user');
     }
     const fullName = `${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim();
-    return fullName || profile.username || fallback || 'Utilisateur';
+    return fullName || profile.username || fallback || t('listing.detail.user');
   };
 
   const getInitials = (profile?: PublicUserDto) => {
@@ -251,24 +253,24 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
   };
 
   const formatReviewDate = (dateString?: string) => {
-    if (!dateString) return 'Date inconnue';
+    if (!dateString) return t('listing.detail.unknownDate');
     const date = new Date(dateString);
-    if (isNaN(date.getTime())) return 'Date inconnue';
+    if (isNaN(date.getTime())) return t('listing.detail.unknownDate');
     const now = new Date();
     const diffTime = Math.abs(now.getTime() - date.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
     if (diffDays < 7) {
-      return `Il y a ${diffDays} jour${diffDays > 1 ? 's' : ''}`;
+      return t('listing.detail.daysAgo', { count: diffDays });
     } else if (diffDays < 30) {
       const weeks = Math.floor(diffDays / 7);
-      return `Il y a ${weeks} semaine${weeks > 1 ? 's' : ''}`;
+      return t('listing.detail.weeksAgo', { count: weeks });
     } else if (diffDays < 365) {
       const months = Math.floor(diffDays / 30);
-      return `Il y a ${months} mois`;
+      return t('listing.detail.monthsAgo', { count: months });
     } else {
       const years = Math.floor(diffDays / 365);
-      return `Il y a ${years} an${years > 1 ? 's' : ''}`;
+      return t('listing.detail.yearsAgo', { year: years });
     }
   };
 
@@ -276,7 +278,7 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
     if (!registrationDate) return '';
     const year = new Date(registrationDate).getFullYear();
     if (isNaN(year)) return '';
-    return `Hôte depuis ${year}`;
+    return t('listing.detail.hostSince', { year });
   };
 
   // Parse specific instructions into list items if available
@@ -298,19 +300,19 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
 
   const handleReserve = async () => {
     if (!isAuthenticated || !user?.username) {
-      Alert.alert('Connexion requise', 'Vous devez être connecté pour réserver.');
+      Alert.alert(t('listing.detail.loginRequired'), t('listing.detail.mustLoginToReserve'));
       return;
     }
 
     if (hasApplication) {
       const statusMessages = {
-        'SENT': 'Votre demande est en attente de réponse.',
-        'ACCEPTED': 'Votre demande a été acceptée.',
-        'REFUSED': 'Votre demande a été refusée.',
+        'SENT': t('listing.detail.requestPending'),
+        'ACCEPTED': t('listing.detail.requestAcceptedMsg'),
+        'REFUSED': t('listing.detail.requestRefusedMsg'),
       };
       Alert.alert(
-        'Demande existante',
-        statusMessages[applicationStatus || 'SENT'] || 'Vous avez déjà une demande pour cette annonce.'
+        t('listing.detail.existingRequest'),
+        statusMessages[applicationStatus || 'SENT'] || t('listing.detail.requestPending')
       );
       return;
     }
@@ -330,17 +332,17 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
         setHasApplication(true);
         setApplicationStatus('SENT');
         Alert.alert(
-          'Demande envoyée',
-          'Votre demande de réservation a été envoyée avec succès. Le propriétaire vous contactera bientôt.',
-          [{ text: 'OK' }]
+          t('listing.detail.requestSentSuccess'),
+          t('listing.detail.requestSentDescription'),
+          [{ text: t('common.ok') }]
         );
       }
     } catch (error) {
       console.error('Error creating application:', error);
       Alert.alert(
-        'Erreur',
-        'Une erreur est survenue lors de l\'envoi de votre demande. Veuillez réessayer.',
-        [{ text: 'OK' }]
+        t('listing.detail.error'),
+        t('listing.detail.errorSendingRequest'),
+        [{ text: t('common.ok') }]
       );
     } finally {
       setIsReserving(false);
@@ -348,20 +350,20 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
   };
 
   const getReserveButtonText = () => {
-    if (isOwner()) return 'Votre annonce';
-    if (isReserving) return 'Envoi...';
-    if (isCheckingApplication) return 'Vérification...';
+    if (isOwner()) return t('listing.detail.yourListing');
+    if (isReserving) return t('listing.detail.reserving');
+    if (isCheckingApplication) return t('listing.detail.checking');
     // Only show status if we explicitly have an application with a valid status
     if (hasApplication === true && applicationStatus && (applicationStatus === 'SENT' || applicationStatus === 'ACCEPTED' || applicationStatus === 'REFUSED')) {
       const statusText = {
-        'SENT': 'Demande envoyée',
-        'ACCEPTED': 'Demande acceptée',
-        'REFUSED': 'Demande refusée',
+        'SENT': t('listing.detail.requestSent'),
+        'ACCEPTED': t('listing.detail.requestAccepted'),
+        'REFUSED': t('listing.detail.requestRefused'),
       };
       return statusText[applicationStatus];
     }
     // No application - user can apply
-    return 'Réserver';
+    return t('listing.detail.reserve');
   };
 
   const isOwner = () => {
@@ -377,7 +379,7 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
 
     const messageContent = customMessage.trim();
     if (!messageContent) {
-      Alert.alert('Message requis', 'Veuillez saisir un message.');
+      Alert.alert(t('listing.detail.messageRequired'), t('listing.detail.pleaseEnterMessage'));
       return;
     }
 
@@ -396,14 +398,14 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
         setPendingMessageData(null);
         onMessage(newMessage.discussionId);
       } else {
-        Alert.alert('Erreur', 'Impossible de créer la discussion. Veuillez réessayer.');
+        Alert.alert(t('listing.detail.error'), t('listing.detail.errorCreatingDiscussion'));
       }
     } catch (error) {
       console.error('Error creating message:', error);
       Alert.alert(
-        'Erreur',
-        'Une erreur est survenue lors de l\'envoi du message. Veuillez réessayer.',
-        [{ text: 'OK' }]
+        t('listing.detail.error'),
+        t('listing.detail.errorSendingMessage'),
+        [{ text: t('common.ok') }]
       );
     } finally {
       setIsCreatingMessage(false);
@@ -418,7 +420,7 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
 
   const handleMessage = async () => {
     if (!isAuthenticated || !user?.username) {
-      Alert.alert('Connexion requise', 'Vous devez être connecté pour envoyer un message.');
+      Alert.alert(t('listing.detail.loginRequired'), t('listing.detail.mustLoginToMessage'));
       return;
     }
 
@@ -429,7 +431,7 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
       // Get owner username from announcement
       const fullAnnouncement = await getAnnouncementById(announcementId);
       if (!fullAnnouncement?.ownerUsername) {
-        Alert.alert('Erreur', 'Impossible de trouver le propriétaire de cette annonce.');
+        Alert.alert(t('listing.detail.error'), t('listing.detail.errorFindingOwner'));
         return;
       }
 
@@ -450,15 +452,15 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
       } else {
         // No discussion exists, show modal to customize message
         setPendingMessageData({ announcementId, ownerUsername });
-        setCustomMessage(`Bonjour, je suis intéressé(e) par votre annonce "${listing.title}".`);
+        setCustomMessage(t('listing.detail.writeMessage'));
         setShowMessageModal(true);
       }
     } catch (error) {
       console.error('Error handling message:', error);
       Alert.alert(
-        'Erreur',
-        'Une erreur est survenue lors de l\'ouverture de la discussion. Veuillez réessayer.',
-        [{ text: 'OK' }]
+        t('listing.detail.error'),
+        t('listing.detail.errorOpeningDiscussion'),
+        [{ text: t('common.ok') }]
       );
     }
   };
@@ -596,7 +598,7 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
             <View style={styles.priceRow}>
               <Icon name="Euro" size={20} color={theme.colors.primary} />
               <Text style={styles.priceAmount}>{listing.price}€</Text>
-              <Text style={styles.pricePeriod}>/jour</Text>
+              <Text style={styles.pricePeriod}>{t('listing.detail.perDay')}</Text>
             </View>
           </View>
 
@@ -623,7 +625,7 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
                     )}
                     <View style={styles.ownerDetails}>
                       <Text style={styles.ownerName}>
-                        {owner ? getDisplayName(owner) : 'Propriétaire'}
+                        {owner ? getDisplayName(owner) : t('listing.detail.owner')}
                       </Text>
                       <View style={styles.ownerMeta}>
                         {ownerRating !== null && (
@@ -635,22 +637,22 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
                             <Text style={styles.ownerMetaText}>•</Text>
                           </>
                         )}
-                        {owner?.registrationDate && (
-                          <>
-                            <Text style={styles.ownerMetaText}>
-                              {getHostSinceYear(owner.registrationDate)}
-                            </Text>
-                            {owner.identityVerification && (
-                              <>
-                                <Text style={styles.ownerMetaText}>•</Text>
-                                <View style={styles.verifiedContainer}>
-                                  <Icon name="ShieldCheckmark" size={12} color="#22c55e" />
-                                  <Text style={styles.verifiedText}>Vérifié</Text>
-                                </View>
-                              </>
-                            )}
-                          </>
-                        )}
+                            {owner?.registrationDate && (
+                            <>
+                              <Text style={styles.ownerMetaText}>
+                                {getHostSinceYear(owner.registrationDate)}
+                              </Text>
+                              {owner.identityVerification && (
+                                <>
+                                  <Text style={styles.ownerMetaText}>•</Text>
+                                  <View style={styles.verifiedContainer}>
+                                    <Icon name="ShieldCheckmark" size={12} color="#22c55e" />
+                                    <Text style={styles.verifiedText}>{t('listing.detail.verified')}</Text>
+                                  </View>
+                                </>
+                              )}
+                            </>
+                          )}
                       </View>
                     </View>
                   </View>
@@ -661,7 +663,7 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
 
           {/* Description */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Description</Text>
+            <Text style={styles.sectionTitle}>{t('listing.detail.description')}</Text>
             <Text style={styles.description}>
               {listing.description}
             </Text>
@@ -671,7 +673,7 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
           {importantInfoItems.length > 0 && (
             <Card style={styles.importantCard}>
               <CardContent>
-                <Text style={styles.importantTitle}>Informations importantes</Text>
+                <Text style={styles.importantTitle}>{t('listing.detail.importantInfo')}</Text>
                 <View style={styles.importantList}>
                   {importantInfoItems.map((item, index) => (
                     <View key={index} style={styles.importantItem}>
@@ -687,7 +689,7 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
           {/* Recent Reviews */}
           {reviews.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Avis récents</Text>
+              <Text style={styles.sectionTitle}>{t('listing.detail.recentReviews')}</Text>
               
               {isLoadingReviews ? (
                 <View style={styles.loadingContainer}>
@@ -755,7 +757,7 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
           disabled={isOwner()}
         >
           <Icon name="MessageCircle" size={16} color={theme.colors.foreground} />
-          <Text style={styles.messageButtonText}>Message</Text>
+          <Text style={styles.messageButtonText}>{t('listing.detail.message')}</Text>
         </Button>
         
         <Button 
@@ -777,18 +779,18 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Envoyer un message</Text>
+              <Text style={styles.modalTitle}>{t('listing.detail.sendMessage')}</Text>
               <TouchableOpacity onPress={handleCancelMessage} style={styles.modalCloseButton}>
                 <Icon name="close" size={24} color={theme.colors.foreground} />
               </TouchableOpacity>
             </View>
             
             <View style={styles.modalBody}>
-              <Text style={styles.modalLabel}>Votre message</Text>
+              <Text style={styles.modalLabel}>{t('listing.detail.yourMessage')}</Text>
               <Textarea
                 value={customMessage}
                 onChangeText={setCustomMessage}
-                placeholder="Écrivez votre message ici..."
+                placeholder={t('listing.detail.writeMessage')}
                 rows={6}
                 style={styles.messageTextarea}
               />
@@ -801,7 +803,7 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
                 style={styles.modalCancelButton}
                 disabled={isCreatingMessage}
               >
-                <Text>Annuler</Text>
+                <Text>{t('listing.detail.cancel')}</Text>
               </Button>
               <Button
                 onPress={handleSendCustomMessage}
@@ -811,7 +813,7 @@ export function ListingDetailPage({ listing, onBack, onMessage }: ListingDetailP
                 {isCreatingMessage ? (
                   <ActivityIndicator size="small" color="#ffffff" />
                 ) : (
-                  <Text style={styles.modalSendButtonText}>Envoyer</Text>
+                  <Text style={styles.modalSendButtonText}>{t('listing.detail.send')}</Text>
                 )}
               </Button>
             </View>

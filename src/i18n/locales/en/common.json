@@ -37,6 +37,645 @@
     "searchPlaceholder": "Search Languages",
     "allLanguages": "All Languages",
     "continue": "Continue"
+  },
+  "search": {
+    "title": "Search",
+    "placeholder": "Search on GuardHome",
+    "filters": {
+      "all": "All",
+      "animals": "Animals",
+      "plants": "Plants",
+      "housing": "Housing",
+      "weekend": "Weekend"
+    }
+  },
+  "listing": {
+    "detail": {
+      "description": "Description",
+      "importantInfo": "Important information",
+      "recentReviews": "Recent reviews",
+      "owner": "Owner",
+      "verified": "Verified",
+      "hostSince": "Host since {{year}}",
+      "perDay": "/day",
+      "message": "Message",
+      "reserve": "Reserve",
+      "reserving": "Sending...",
+      "checking": "Checking...",
+      "requestSent": "Request sent",
+      "requestAccepted": "Request accepted",
+      "requestRefused": "Request refused",
+      "yourListing": "Your listing",
+      "unknownDate": "Unknown date",
+      "daysAgo": "{{count}} day ago",
+      "daysAgo_plural": "{{count}} days ago",
+      "weeksAgo": "{{count}} week ago",
+      "weeksAgo_plural": "{{count}} weeks ago",
+      "monthsAgo": "{{count}} month ago",
+      "monthsAgo_plural": "{{count}} months ago",
+      "yearsAgo": "{{year}} year ago",
+      "yearsAgo_plural": "{{year}} years ago",
+      "sendMessage": "Send a message",
+      "yourMessage": "Your message",
+      "writeMessage": "Write your message here...",
+      "cancel": "Cancel",
+      "send": "Send",
+      "loginRequired": "Login required",
+      "mustLoginToReserve": "You must be logged in to reserve.",
+      "mustLoginToMessage": "You must be logged in to send a message.",
+      "existingRequest": "Existing request",
+      "requestPending": "Your request is pending.",
+      "requestAcceptedMsg": "Your request has been accepted.",
+      "requestRefusedMsg": "Your request has been refused.",
+      "requestSentSuccess": "Request sent",
+      "requestSentDescription": "Your reservation request has been sent successfully. The owner will contact you soon.",
+      "error": "Error",
+      "errorSendingRequest": "An error occurred while sending your request. Please try again.",
+      "errorFindingOwner": "Unable to find the owner of this listing.",
+      "errorOpeningDiscussion": "An error occurred while opening the discussion. Please try again.",
+      "errorCreatingDiscussion": "Unable to create the discussion. Please try again.",
+      "errorSendingMessage": "An error occurred while sending the message. Please try again.",
+      "messageRequired": "Message required",
+      "pleaseEnterMessage": "Please enter a message.",
+      "user": "User"
+    },
+    "card": {
+      "reviews": "reviews"
+    }
+  },
+  "favorites": {
+    "title": "My favorites",
+    "searchPlaceholder": "Search in my favorites...",
+    "filters": {
+      "all": "All",
+      "animals": "Animals",
+      "plants": "Plants",
+      "garden": "Garden"
+    },
+    "empty": {
+      "noFavorites": "No favorites",
+      "addFavorites": "Add listings to your favorites by tapping the heart",
+      "discoverListings": "Discover listings",
+      "noResults": "No results",
+      "tryFilters": "Try modifying your search filters",
+      "clearFilters": "Clear filters"
+    }
+  },
+  "messages": {
+    "title": "Messages",
+    "searchPlaceholder": "Search a conversation...",
+    "empty": {
+      "noConversations": "No conversations",
+      "noSearchResults": "No results for your search",
+      "conversationsWillAppear": "Your conversations will appear here"
+    },
+    "conversation": {
+      "lastMessage": "Last message {{time}}",
+      "discussionOpened": "Discussion opened",
+      "openConversation": "Open conversation",
+      "loadingMessages": "Loading messages…",
+      "noMessages": "No messages at the moment.",
+      "typeMessage": "Type your message...",
+      "loadingConversations": "Loading conversations…",
+      "errorLoadingDiscussions": "Unable to load your discussions at the moment.",
+      "errorLoadingMessages": "Unable to load messages from this conversation.",
+      "errorSendingMessage": "Unable to send the message. Please try again."
+    }
+  },
+  "createListing": {
+    "title": "Create a listing",
+    "editTitle": "Edit listing",
+    "loading": "Loading listing...",
+    "sections": {
+      "title": "Listing title",
+      "titlePlaceholder": "Ex: Taking care of my 2 cats during vacation",
+      "location": "Location",
+      "locationPlaceholder": "Address or city",
+      "guardType": "Requested guard type",
+      "period": "Guard period",
+      "startDate": "Start date",
+      "endDate": "End date",
+      "selectDate": "Select a date",
+      "frequency": "Required visit frequency",
+      "selectFrequency": "Select frequency",
+      "frequencyHelp": "How often should the guardian come during your absence?",
+      "price": "Proposed remuneration",
+      "pricePlaceholder": "0",
+      "perDay": "/day",
+      "description": "Description",
+      "descriptionPlaceholder": "Describe your request, your home, your animals/plants...",
+      "instructions": "Specific instructions",
+      "instructionsPlaceholder": "Detailed instructions, feeding schedules, veterinarian contacts...",
+      "publicPhotos": "Public photos",
+      "publicPhotosHelp": "Photos visible to all guardians to present your listing",
+      "privatePhotos": "Private access photos",
+      "privatePhotosHelp": "Sensitive photos (codes, keys, access) revealed only after mission acceptance",
+      "additionalOptions": "Additional options",
+      "idVerification": "Identity verification required",
+      "idVerificationDesc": "The guardian will need to provide an ID",
+      "emergency": "Available for emergencies",
+      "emergencyDesc": "Accept last-minute requests"
+    },
+    "actions": {
+      "add": "Add",
+      "publish": "Publish listing",
+      "update": "Update listing",
+      "publishing": "Publishing...",
+      "updating": "Updating...",
+      "willBeVisible": "Your listing will be visible immediately",
+      "willBeApplied": "Your changes will be applied immediately"
+    },
+    "errors": {
+      "fillRequired": "Please fill in all required fields",
+      "selectGuardType": "Please select at least one guard type",
+      "selectOneGuardType": "Please select only one guard type. Only the first will be used.",
+      "validStartDate": "Please enter a valid start date (format: DD/MM/YYYY)",
+      "errorLoading": "Error loading listing",
+      "errorCreating": "Error creating listing",
+      "errorUpdating": "Error updating listing",
+      "successCreated": "Listing created successfully!",
+      "successUpdated": "Listing updated successfully!",
+      "permissionRequired": "Permission required",
+      "needPhotoPermission": "We need your permission to access your photos.",
+      "errorProcessingImage": "Unable to process this image. Please try again.",
+      "unsupportedFormat": "Unsupported file format.",
+      "errorSelectingImage": "Unable to select image"
+    },
+    "guardTypes": {
+      "homeCare": "Home Care",
+      "homeCareDesc": "Home care and daily assistance",
+      "medicalCare": "Medical Care",
+      "medicalCareDesc": "Medical care and health monitoring",
+      "companionship": "Companionship",
+      "companionshipDesc": "Companionship and support",
+      "mealPreparation": "Meal Preparation",
+      "mealPreparationDesc": "Meal preparation",
+      "transportation": "Transportation",
+      "transportationDesc": "Transport and travel",
+      "housekeeping": "Housekeeping",
+      "housekeepingDesc": "Housekeeping and home maintenance",
+      "personalCare": "Personal Care",
+      "personalCareDesc": "Personal care and hygiene",
+      "medicationManagement": "Medication Management",
+      "medicationManagementDesc": "Medication management",
+      "physicalTherapy": "Physical Therapy",
+      "physicalTherapyDesc": "Physiotherapy and rehabilitation",
+      "nursingCare": "Nursing Care",
+      "nursingCareDesc": "Nursing care"
+    },
+    "frequencyOptions": {
+      "oncePerDay": "1 time per day",
+      "twicePerDay": "2 times per day",
+      "threeTimesPerDay": "3 times per day",
+      "everyOtherDay": "Every other day",
+      "oncePerWeek": "1 time per week",
+      "twoThreePerWeek": "2-3 times per week",
+      "continuous": "Continuous presence"
+    }
+  },
+  "myListings": {
+    "title": "My listings",
+    "stats": {
+      "active": "Active",
+      "applications": "Applications"
+    },
+    "tabs": {
+      "active": "Active",
+      "completed": "Completed"
+    },
+    "badges": {
+      "active": "Active",
+      "completed": "Completed"
+    },
+    "details": {
+      "price": "Price:",
+      "period": "Period:",
+      "applications": "Applications:",
+      "created": "Created {{date}}",
+      "guardedBy": "Guarded by {{name}}",
+      "rateGuardian": "Rate guardian",
+      "alreadyRated": "Already rated",
+      "edit": "Edit",
+      "changeStatus": "Change status",
+      "delete": "Delete"
+    },
+    "empty": {
+      "noActive": "No active listings",
+      "noCompleted": "No completed guards",
+      "createFirst": "Create your first listing to start receiving applications.",
+      "completedWillAppear": "Your completed listings will appear here with guard details.",
+      "createListing": "Create a listing"
+    },
+    "modals": {
+      "deleteTitle": "Delete listing",
+      "deleteConfirm": "Are you sure you want to delete \"{{title}}\"? This action is irreversible.",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "errorDeleting": "Unable to delete listing.",
+      "changeStatusTitle": "Change status",
+      "changeStatusSubtitle": "Select the new status for \"{{title}}\"",
+      "statuses": {
+        "published": "Published",
+        "inProgress": "In progress",
+        "completed": "Completed"
+      },
+      "errorUpdatingStatus": "Unable to modify the listing status.",
+      "rateGuardianTitle": "Rate guardian",
+      "rateGuardianSubtitle": "{{title}}",
+      "guardian": "Guardian: {{name}}",
+      "ratingLabel": "Rating (1-5 stars)",
+      "ratingScore": "{{score}} / 5",
+      "commentLabel": "Comment (optional)",
+      "commentPlaceholder": "Share your experience...",
+      "save": "Save",
+      "errorSelectRating": "Please select a rating",
+      "errorNotLoggedIn": "User not logged in",
+      "successRating": "Your evaluation has been recorded",
+      "errorSavingRating": "Unable to save the evaluation. Please try again."
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "memberSince": "Member since {{date}}",
+    "stats": {
+      "listings": "Listings",
+      "guards": "Guards",
+      "averageRating": "Average rating"
+    },
+    "activities": {
+      "title": "My activities",
+      "myListings": "My listings",
+      "myListingsDesc": "Manage your guard requests",
+      "receivedApplications": "Received applications",
+      "receivedApplicationsDesc": "Manage received applications",
+      "myApplications": "My applications",
+      "myApplicationsDesc": "View my sent applications",
+      "myGuards": "My guards",
+      "myGuardsDesc": "Your past and upcoming guards",
+      "myReviews": "My reviews",
+      "myReviewsDesc": "Received and given evaluations"
+    },
+    "settings": {
+      "title": "Settings",
+      "subscription": "Subscription",
+      "subscriptionFree": "Free Plan - Upgrade to Premium",
+      "subscriptionPremium": "Premium Plan active",
+      "subscriptionCancelling": "Premium - Cancellation scheduled",
+      "subscriptionBadgeFree": "Free",
+      "subscriptionBadgePremium": "Premium",
+      "subscriptionBadgeExpiring": "Expiring soon",
+      "payments": "Payments",
+      "paymentsDesc": "Cards and billing"
+    },
+    "support": {
+      "title": "Support"
+    },
+    "recentActivity": {
+      "title": "Recent activity",
+      "starsFrom": "{{score}} stars from {{author}}",
+      "receivedOn": "Received on {{date}}",
+      "noReviews": "No reviews yet",
+      "reviewsWillAppear": "Your received reviews will appear here once a client evaluates you."
+    },
+    "logout": "Log out",
+    "version": "GuardHome v1.2.0",
+    "modals": {
+      "selectAnnouncement": "Select a listing",
+      "loadingAnnouncements": "Loading listings...",
+      "noAnnouncements": "No listings",
+      "noAnnouncementsDesc": "You haven't created any listings yet."
+    }
+  },
+  "editProfile": {
+    "title": "Edit profile",
+    "loading": "Loading profile...",
+    "save": "Save",
+    "saving": "Saving...",
+    "sections": {
+      "photo": {
+        "changePhoto": "Change photo",
+        "remove": "Remove"
+      },
+      "personalInfo": "Personal information",
+      "firstName": "First name",
+      "firstNamePlaceholder": "First name",
+      "lastName": "Last name",
+      "lastNamePlaceholder": "Last name",
+      "email": "Email",
+      "emailPlaceholder": "Email",
+      "phone": "Phone",
+      "phonePlaceholder": "Phone",
+      "location": "Location",
+      "locationPlaceholder": "City, Country",
+      "about": "About me",
+      "description": "Description",
+      "descriptionPlaceholder": "Tell us about yourself, your experience...",
+      "charCount": "{{count}}/500 characters",
+      "skills": "Skills & Availability",
+      "languages": "Spoken languages",
+      "noLanguagesAvailable": "No languages available",
+      "selected": "Selected: {{list}}",
+      "specialisations": "Specialisations",
+      "noSpecialisationsAvailable": "No specialisations available"
+    },
+    "privacy": {
+      "title": "Privacy",
+      "profileVisible": "Publicly visible profile",
+      "profileVisibleDesc": "Your profile appears in searches",
+      "phoneVisible": "Phone visible",
+      "phoneVisibleDesc": "Display your number on your profile",
+      "emailVisible": "Email visible",
+      "emailVisibleDesc": "Display your email on your profile",
+      "locationVisible": "Location visible",
+      "locationVisibleDesc": "Display your city on your profile"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "messages": "Messages",
+      "messagesDesc": "Receive new message notifications",
+      "bookings": "Bookings",
+      "bookingsDesc": "Alerts for new guard requests",
+      "reviews": "Reviews and evaluations",
+      "reviewsDesc": "Notifications for new reviews",
+      "marketing": "Marketing",
+      "marketingDesc": "Promotions and new features"
+    },
+    "actions": {
+      "saveChanges": "Save changes"
+    },
+    "errors": {
+      "errorLoading": "Unable to load profile data",
+      "errorSaving": "Unable to save profile",
+      "success": "Profile updated successfully",
+      "permissionRequired": "Permission required",
+      "needPhotoPermission": "We need your permission to access your photos.",
+      "errorProcessingImage": "Unable to process this image. Please try again.",
+      "unsupportedFormat": "Unsupported file format.",
+      "errorSelectingPhoto": "Unable to select profile photo"
+    }
+  },
+  "completeProfile": {
+    "title": "Complete your profile",
+    "subtitle": "To use all the features of the application, please complete your profile.",
+    "loading": "Loading your profile...",
+    "fields": {
+      "firstName": "First name",
+      "firstNamePlaceholder": "Your first name",
+      "lastName": "Last name",
+      "lastNamePlaceholder": "Your last name",
+      "email": "Email",
+      "emailPlaceholder": "your.email@example.com",
+      "phone": "Phone",
+      "phonePlaceholder": "06 12 34 56 78",
+      "location": "Location",
+      "locationPlaceholder": "Paris, France",
+      "description": "Description",
+      "descriptionPlaceholder": "Tell us about yourself...",
+      "languages": "Spoken languages",
+      "languagesPlaceholder": "Select your languages",
+      "languagesSelected": "{{count}} language selected",
+      "languagesSelected_plural": "{{count}} languages selected",
+      "specialisations": "Specialisations",
+      "specialisationsPlaceholder": "Select your specialisations",
+      "specialisationsSelected": "{{count}} specialisation selected",
+      "specialisationsSelected_plural": "{{count}} specialisations selected"
+    },
+    "modals": {
+      "selectLanguages": "Select your languages",
+      "selectSpecialisations": "Select your specialisations",
+      "validate": "Validate"
+    },
+    "actions": {
+      "save": "Save and continue",
+      "saving": "Saving..."
+    },
+    "errors": {
+      "requiredFields": "Required fields",
+      "fillFirstNameLastName": "Please fill in first name and last name.",
+      "fillPhone": "Please fill in your phone number.",
+      "fillLocation": "Please fill in your location.",
+      "selectLanguage": "Please select at least one language.",
+      "selectSpecialisation": "Please select at least one specialisation.",
+      "missingUserInfo": "Missing user information.",
+      "errorSaving": "Failed to save profile.",
+      "success": "Your profile has been completed successfully!"
+    }
+  },
+  "guardHistory": {
+    "title": "My guards",
+    "loading": "Loading history...",
+    "error": "Error loading guard history",
+    "retry": "Retry",
+    "stats": {
+      "title": "Your statistics",
+      "completed": "Completed guards",
+      "totalEarnings": "Total earnings",
+      "averageRating": "Average rating"
+    },
+    "tabs": {
+      "current": "In progress",
+      "upcoming": "Upcoming",
+      "completed": "Completed"
+    },
+    "badges": {
+      "completed": "Completed",
+      "inProgress": "In progress",
+      "confirmed": "Confirmed"
+    },
+    "details": {
+      "period": "Period:",
+      "duration": "Duration:",
+      "payment": "Payment:",
+      "photos": "Photos:",
+      "owner": "Owner:"
+    },
+    "current": {
+      "alertTitle": "Guard in progress",
+      "daysLeft": "Only {{count}} days remaining"
+    },
+    "actions": {
+      "rateOwner": "Rate owner",
+      "contact": "Contact",
+      "viewDetails": "View details",
+      "message": "Message",
+      "addPhotos": "Add photos"
+    },
+    "empty": {
+      "noCurrent": "No guards in progress",
+      "noCurrentDesc": "You currently have no active guards.",
+      "noUpcoming": "No scheduled guards",
+      "noUpcomingDesc": "You have no guards scheduled at the moment.",
+      "noCompleted": "No completed guards",
+      "noCompletedDesc": "Your guard history will appear here."
+    },
+    "modals": {
+      "rateOwnerTitle": "Rate owner",
+      "owner": "Owner: {{name}}",
+      "ratingLabel": "Rating (1-5 stars)",
+      "ratingScore": "{{score}} / 5",
+      "commentLabel": "Comment (optional)",
+      "commentPlaceholder": "Share your experience...",
+      "cancel": "Cancel",
+      "save": "Save",
+      "errorSelectRating": "Please select a rating",
+      "errorNotLoggedIn": "User not logged in",
+      "success": "Your evaluation has been recorded",
+      "errorSaving": "Unable to save the evaluation. Please try again."
+    }
+  },
+  "reviews": {
+    "title": "My reviews",
+    "tabs": {
+      "received": "Received",
+      "given": "Given"
+    },
+    "stats": {
+      "title": "Your reputation",
+      "averageRating": "Average rating",
+      "received": "Received reviews",
+      "given": "Given reviews"
+    },
+    "loading": "Loading reviews…",
+    "error": "Unable to load reviews. Please try again later.",
+    "empty": {
+      "noReceived": "No reviews received",
+      "noReceivedDesc": "Your client reviews will appear here after your first guards.",
+      "noGiven": "No reviews given",
+      "noGivenDesc": "Your owner evaluations will appear here."
+    },
+    "review": {
+      "receivedOn": "Received on {{date}}",
+      "givenOn": "Given on {{date}}",
+      "yourRating": "Your rating:",
+      "noComment": "No comment provided.",
+      "noCommentAdded": "No comment added.",
+      "edit": "Edit"
+    }
+  },
+  "subscription": {
+    "title": "Subscription",
+    "loading": "Loading subscriptions...",
+    "current": {
+      "title": "Active Premium subscription",
+      "renewal": "Automatic renewal on {{date}}",
+      "cancelling": "⚠️ Cancellation scheduled - Premium access will end on {{date}}"
+    },
+    "plans": {
+      "title": "Choose your plan",
+      "free": {
+        "name": "Free",
+        "features": [
+          "3 listings per month",
+          "Limited messages",
+          "Email support",
+          "Basic profile"
+        ],
+        "limitations": [
+          "No multiple photos",
+          "No priority in results",
+          "No premium badges"
+        ]
+      },
+      "premium": {
+        "name": "Premium",
+        "features": [
+          "Unlimited listings",
+          "Unlimited messages",
+          "Priority 24/7 support",
+          "Verified profile",
+          "Multiple photos",
+          "Premium badge",
+          "Priority in results",
+          "Advanced statistics",
+          "Push notifications",
+          "Integrated calendar"
+        ]
+      },
+      "popular": "Most popular",
+      "current": "Current",
+      "cancelling": "Cancellation scheduled",
+      "perMonth": "/month",
+      "perYear": "/year",
+      "perDay": "/day",
+      "perWeek": "/week",
+      "renewal": "Renewal on {{date}}",
+      "upgrade": "Upgrade to {{name}}",
+      "cancel": "Cancel subscription",
+      "cancelConfirm": "Cancel subscription",
+      "cancelMessage": "Do you really want to cancel your subscription? You will keep access until the end of your billing period.",
+      "no": "No",
+      "yesCancel": "Yes, cancel",
+      "cancelSuccess": "Your subscription will be canceled at the end of the billing period.",
+      "cancelError": "Unable to cancel subscription."
+    },
+    "faq": {
+      "title": "Frequently asked questions",
+      "canCancel": "Can I cancel at any time?",
+      "canCancelAnswer": "Yes, you can cancel your subscription at any time from this page. You will keep access until the end of your billing period.",
+      "whatIfCancel": "What happens if I cancel?",
+      "whatIfCancelAnswer": "You keep Premium access until the end of your billing period. After that, you will return to the free plan.",
+      "trial": "Is there a trial period?",
+      "trialAnswer": "Yes, we offer a 7-day free trial for the Premium plan. You can cancel at any time during this period without being charged."
+    },
+    "errors": {
+      "completeEmail": "Please first complete your profile with an email address.",
+      "errorCreatingCustomer": "Unable to create customer account",
+      "errorSubscribing": "An error occurred during subscription.",
+      "success": "Your subscription has been activated successfully!",
+      "noActiveSubscription": "No active subscription found."
+    }
+  },
+  "payments": {
+    "title": "Payments",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing...",
+    "lastUpdated": "Updated on {{date}}",
+    "transactions": {
+      "title": "Recent transactions",
+      "loading": "Loading transactions...",
+      "empty": {
+        "title": "No transactions",
+        "subtitle": "Your recent transactions will appear here once they are available."
+      }
+    },
+    "status": {
+      "succeeded": "Succeeded",
+      "requiresPaymentMethod": "Action required",
+      "processing": "Processing",
+      "canceled": "Canceled"
+    },
+    "types": {
+      "premiumSubscription": "Premium Subscription",
+      "mission": "Mission #{{id}}",
+      "payment": "Payment"
+    },
+    "errors": {
+      "sessionExpired": "Session expired, please log in again.",
+      "errorLoading": "Unable to load transactions (HTTP {{status}})",
+      "errorLoadingGeneric": "Unable to load transactions."
+    }
+  },
+  "listingCard": {
+    "pricePerDay": "{{price}}€/day",
+    "reviews": "({{count}} reviews)"
+  },
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "back": "Back",
+    "close": "Close",
+    "send": "Send",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "retry": "Retry",
+    "unknownDate": "Unknown date",
+    "user": "User",
+    "owner": "Owner",
+    "days": "{{count}} day",
+    "days_plural": "{{count}} days"
   }
 }
-

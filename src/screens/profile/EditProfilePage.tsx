@@ -14,12 +14,14 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useUserApi } from '../../hooks/api/useUserApi';
 import { LabelDto } from '../../types/api';
 import { buildDataUri, extractBase64, normalizeImageValue } from '../../utils/imageUtils';
+import { useTranslation } from 'react-i18next';
 
 interface EditProfilePageProps {
   onBack: () => void;
 }
 
 export function EditProfilePage({ onBack }: EditProfilePageProps) {
+  const { t } = useTranslation();
   const { user, updateUserProfile } = useAuth();
   const { 
     getMyProfile, 
@@ -71,9 +73,9 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert(
-          'Permission requise',
-          'Nous avons besoin de votre permission pour accéder à vos photos.',
-          [{ text: 'OK' }],
+          t('editProfile.errors.permissionRequired'),
+          t('editProfile.errors.needPhotoPermission'),
+          [{ text: t('common.ok') }],
         );
         return false;
       }
@@ -98,14 +100,14 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
         const asset = result.assets[0];
 
         if (!asset.base64) {
-          Alert.alert('Erreur', 'Impossible de traiter cette image. Veuillez réessayer.');
+          Alert.alert(t('common.error'), t('editProfile.errors.errorProcessingImage'));
           return;
         }
 
         const imageUri = buildDataUri(asset.base64, asset.mimeType);
 
         if (!imageUri) {
-          Alert.alert('Erreur', 'Format de fichier non supporté.');
+          Alert.alert(t('common.error'), t('editProfile.errors.unsupportedFormat'));
           return;
         }
 
@@ -116,7 +118,7 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
       }
     } catch (error) {
       console.error('Error picking profile photo:', error);
-      Alert.alert('Erreur', 'Impossible de sélectionner la photo de profil');
+      Alert.alert(t('common.error'), t('editProfile.errors.errorSelectingPhoto'));
     }
   };
 
@@ -220,7 +222,7 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
         }
       } catch (error) {
         console.error('Error loading profile:', error);
-        Alert.alert('Erreur', 'Impossible de charger les données du profil');
+        Alert.alert(t('common.error'), t('editProfile.errors.errorLoading'));
       } finally {
         setIsLoading(false);
       }
@@ -326,12 +328,12 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
           avatar: normalizedUpdatedAvatar,
         }));
 
-        Alert.alert('Succès', 'Profil mis à jour avec succès');
+        Alert.alert(t('common.success'), t('editProfile.errors.success'));
         onBack();
       }
     } catch (error) {
       console.error('Error saving profile:', error);
-      Alert.alert('Erreur', 'Impossible de sauvegarder le profil');
+      Alert.alert(t('common.error'), t('editProfile.errors.errorSaving'));
     } finally {
       setIsSaving(false);
     }
@@ -345,13 +347,13 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
             <TouchableOpacity onPress={onBack} style={styles.backButton}>
               <Icon name="arrow-back" size={24} color={theme.colors.foreground} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Modifier le profil</Text>
+            <Text style={styles.headerTitle}>{t('editProfile.title')}</Text>
             <View style={styles.spacer} />
           </View>
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={styles.loadingText}>Chargement du profil...</Text>
+          <Text style={styles.loadingText}>{t('editProfile.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -365,10 +367,10 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
           <TouchableOpacity onPress={onBack} style={styles.backButton}>
             <Icon name="arrow-back" size={24} color={theme.colors.foreground} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Modifier le profil</Text>
+          <Text style={styles.headerTitle}>{t('editProfile.title')}</Text>
           <TouchableOpacity onPress={handleSave} disabled={isSaving}>
             <Text style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}>
-              {isSaving ? 'Sauvegarde...' : 'Sauver'}
+              {isSaving ? t('editProfile.saving') : t('editProfile.save')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -398,7 +400,7 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
                   onPress={handleChangePhoto}
                 >
                   <Icon name="camera" size={16} color={theme.colors.primary} />
-                  <Text style={styles.photoButtonText}>Changer la photo</Text>
+                  <Text style={styles.photoButtonText}>{t('editProfile.sections.photo.changePhoto')}</Text>
                 </Button>
                 <Button
                   variant="ghost"
@@ -407,7 +409,7 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
                   onPress={handleRemovePhoto}
                   disabled={!profile.avatar}
                 >
-                  <Text style={styles.removeButtonText}>Supprimer</Text>
+                  <Text style={styles.removeButtonText}>{t('editProfile.sections.photo.remove')}</Text>
                 </Button>
               </View>
             </View>
@@ -417,53 +419,53 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
         {/* Basic Information */}
         <Card style={styles.sectionCard}>
           <CardContent style={styles.sectionContent}>
-            <Text style={styles.sectionTitle}>Informations personnelles</Text>
+            <Text style={styles.sectionTitle}>{t('editProfile.sections.personalInfo')}</Text>
             
             <View style={styles.inputRow}>
               <View style={styles.halfInput}>
-                <Label>Prénom</Label>
+                <Label>{t('editProfile.sections.firstName')}</Label>
                 <Input
                   value={profile.firstName}
                   onChangeText={(text) => setProfile(prev => ({ ...prev, firstName: text }))}
-                  placeholder="Prénom"
+                  placeholder={t('editProfile.sections.firstNamePlaceholder')}
                 />
               </View>
               <View style={styles.halfInput}>
-                <Label>Nom</Label>
+                <Label>{t('editProfile.sections.lastName')}</Label>
                 <Input
                   value={profile.lastName}
                   onChangeText={(text) => setProfile(prev => ({ ...prev, lastName: text }))}
-                  placeholder="Nom"
+                  placeholder={t('editProfile.sections.lastNamePlaceholder')}
                 />
               </View>
             </View>
 
             <View style={styles.inputGroup}>
-              <Label>Email</Label>
+              <Label>{t('editProfile.sections.email')}</Label>
               <Input
                 value={profile.email}
                 onChangeText={(text) => setProfile(prev => ({ ...prev, email: text }))}
-                placeholder="Email"
+                placeholder={t('editProfile.sections.emailPlaceholder')}
                 keyboardType="email-address"
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Label>Téléphone</Label>
+              <Label>{t('editProfile.sections.phone')}</Label>
               <Input
                 value={profile.phone}
                 onChangeText={(text) => setProfile(prev => ({ ...prev, phone: text }))}
-                placeholder="Téléphone"
+                placeholder={t('editProfile.sections.phonePlaceholder')}
                 keyboardType="phone-pad"
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Label>Localisation</Label>
+              <Label>{t('editProfile.sections.location')}</Label>
               <Input
                 value={profile.location}
                 onChangeText={(text) => setProfile(prev => ({ ...prev, location: text }))}
-                placeholder="Ville, Pays"
+                placeholder={t('editProfile.sections.locationPlaceholder')}
               />
             </View>
           </CardContent>
@@ -472,16 +474,16 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
         {/* Bio */}
         <Card style={styles.sectionCard}>
           <CardContent style={styles.sectionContent}>
-            <Text style={styles.sectionTitle}>À propos de moi</Text>
+            <Text style={styles.sectionTitle}>{t('editProfile.about')}</Text>
             <View style={styles.inputGroup}>
-              <Label>Description</Label>
+              <Label>{t('editProfile.description')}</Label>
               <Textarea
                 value={profile.bio}
                 onChangeText={(text) => setProfile(prev => ({ ...prev, bio: text }))}
-                placeholder="Parlez-nous de vous, de votre expérience..."
+                placeholder={t('editProfile.descriptionPlaceholder')}
                 numberOfLines={4}
               />
-              <Text style={styles.charCount}>{profile.bio.length}/500 caractères</Text>
+              <Text style={styles.charCount}>{t('editProfile.charCount', { count: profile.bio.length })}</Text>
             </View>
           </CardContent>
         </Card>
@@ -489,13 +491,13 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
         {/* Skills & Availability */}
         <Card style={styles.sectionCard}>
           <CardContent style={styles.sectionContent}>
-            <Text style={styles.sectionTitle}>Compétences et disponibilité</Text>
+            <Text style={styles.sectionTitle}>{t('editProfile.skills')}</Text>
             
             <View style={styles.inputGroup}>
-              <Label>Langues parlées</Label>
+              <Label>{t('editProfile.languages')}</Label>
               <View style={styles.choiceList}>
                 {availableLanguages.length === 0 ? (
-                  <Text style={styles.emptyChoiceText}>Aucune langue disponible</Text>
+                  <Text style={styles.emptyChoiceText}>{t('editProfile.noLanguagesAvailable')}</Text>
                 ) : (
                   availableLanguages.map((lang) => {
                     const selected = profile.languages.includes(lang.label);
@@ -523,16 +525,16 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
               </View>
               {profile.languages.length > 0 && (
                 <Text style={styles.selectedChoiceText}>
-                  Sélectionnées : {profile.languages.join(', ')}
+                  {t('editProfile.selected', { list: profile.languages.join(', ') })}
                 </Text>
               )}
             </View>
 
             <View style={styles.inputGroup}>
-              <Label>Spécialisations</Label>
+              <Label>{t('editProfile.specialisations')}</Label>
               <View style={styles.choiceList}>
                 {availableSpecialisations.length === 0 ? (
-                  <Text style={styles.emptyChoiceText}>Aucune spécialisation disponible</Text>
+                  <Text style={styles.emptyChoiceText}>{t('editProfile.noSpecialisationsAvailable')}</Text>
                 ) : (
                   availableSpecialisations.map((spec) => {
                     const selected = profile.skills.includes(spec.label);
@@ -560,7 +562,7 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
               </View>
               {profile.skills.length > 0 && (
                 <Text style={styles.selectedChoiceText}>
-                  Sélectionnées : {profile.skills.join(', ')}
+                  {t('editProfile.selected', { list: profile.skills.join(', ') })}
                 </Text>
               )}
             </View>
@@ -571,12 +573,12 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
         {/* Privacy Settings */}
         <Card style={styles.sectionCard}>
           <CardContent style={styles.sectionContent}>
-            <Text style={styles.sectionTitle}>Confidentialité</Text>
+            <Text style={styles.sectionTitle}>{t('editProfile.privacy.title')}</Text>
             
             <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
-                <Text style={styles.settingText}>Profil visible publiquement</Text>
-                <Text style={styles.settingDescription}>Votre profil apparaît dans les recherches</Text>
+                <Text style={styles.settingText}>{t('editProfile.privacy.profileVisible')}</Text>
+                <Text style={styles.settingDescription}>{t('editProfile.privacy.profileVisibleDesc')}</Text>
               </View>
               <Switch
                 value={privacy.profileVisible}
@@ -588,8 +590,8 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
 
             <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
-                <Text style={styles.settingText}>Téléphone visible</Text>
-                <Text style={styles.settingDescription}>Afficher votre numéro sur votre profil</Text>
+                <Text style={styles.settingText}>{t('editProfile.privacy.phoneVisible')}</Text>
+                <Text style={styles.settingDescription}>{t('editProfile.privacy.phoneVisibleDesc')}</Text>
               </View>
               <Switch
                 value={privacy.phoneVisible}
@@ -601,8 +603,8 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
 
             <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
-                <Text style={styles.settingText}>Email visible</Text>
-                <Text style={styles.settingDescription}>Afficher votre email sur votre profil</Text>
+                <Text style={styles.settingText}>{t('editProfile.privacy.emailVisible')}</Text>
+                <Text style={styles.settingDescription}>{t('editProfile.privacy.emailVisibleDesc')}</Text>
               </View>
               <Switch
                 value={privacy.emailVisible}
@@ -614,8 +616,8 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
 
             <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
-                <Text style={styles.settingText}>Localisation visible</Text>
-                <Text style={styles.settingDescription}>Afficher votre ville sur votre profil</Text>
+                <Text style={styles.settingText}>{t('editProfile.privacy.locationVisible')}</Text>
+                <Text style={styles.settingDescription}>{t('editProfile.privacy.locationVisibleDesc')}</Text>
               </View>
               <Switch
                 value={privacy.locationVisible}
@@ -630,12 +632,12 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
         {/* Notification Settings */}
         <Card style={styles.sectionCard}>
           <CardContent style={styles.sectionContent}>
-            <Text style={styles.sectionTitle}>Notifications</Text>
+            <Text style={styles.sectionTitle}>{t('editProfile.notifications.title')}</Text>
             
             <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
-                <Text style={styles.settingText}>Messages</Text>
-                <Text style={styles.settingDescription}>Recevoir les notifications de nouveaux messages</Text>
+                <Text style={styles.settingText}>{t('editProfile.notifications.messages')}</Text>
+                <Text style={styles.settingDescription}>{t('editProfile.notifications.messagesDesc')}</Text>
               </View>
               <Switch
                 value={notifications.messages}
@@ -647,8 +649,8 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
 
             <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
-                <Text style={styles.settingText}>Réservations</Text>
-                <Text style={styles.settingDescription}>Alertes pour les nouvelles demandes de garde</Text>
+                <Text style={styles.settingText}>{t('editProfile.notifications.bookings')}</Text>
+                <Text style={styles.settingDescription}>{t('editProfile.notifications.bookingsDesc')}</Text>
               </View>
               <Switch
                 value={notifications.bookings}
@@ -660,8 +662,8 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
 
             <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
-                <Text style={styles.settingText}>Avis et évaluations</Text>
-                <Text style={styles.settingDescription}>Notifications lors de nouveaux avis</Text>
+                <Text style={styles.settingText}>{t('editProfile.notifications.reviews')}</Text>
+                <Text style={styles.settingDescription}>{t('editProfile.notifications.reviewsDesc')}</Text>
               </View>
               <Switch
                 value={notifications.reviews}
@@ -673,8 +675,8 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
 
             <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
-                <Text style={styles.settingText}>Marketing</Text>
-                <Text style={styles.settingDescription}>Promotions et nouvelles fonctionnalités</Text>
+                <Text style={styles.settingText}>{t('editProfile.notifications.marketing')}</Text>
+                <Text style={styles.settingDescription}>{t('editProfile.notifications.marketingDesc')}</Text>
               </View>
               <Switch
                 value={notifications.marketing}
@@ -696,7 +698,7 @@ export function EditProfilePage({ onBack }: EditProfilePageProps) {
             {isSaving ? (
               <ActivityIndicator size="small" color="#ffffff" />
             ) : (
-              <Text style={styles.saveButtonText}>Sauvegarder les modifications</Text>
+              <Text style={styles.saveButtonText}>{t('editProfile.actions.saveChanges')}</Text>
             )}
           </Button>
         </View>

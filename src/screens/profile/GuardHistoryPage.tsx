@@ -14,6 +14,7 @@ import { useAnnouncementsApi } from '../../hooks/api/useAnnouncementsApi';
 import { useRatingsApi } from '../../hooks/api/useRatingsApi';
 import { useUserApi } from '../../hooks/api/useUserApi';
 import { ApplicationResponseDto, AnnouncementResponseDto, RatingDto } from '../../types/api';
+import { useTranslation } from 'react-i18next';
 
 interface GuardHistoryPageProps {
   onBack: () => void;
@@ -42,6 +43,7 @@ interface GuardData {
 }
 
 export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState("current");
   const { user } = useAuth();
   const { listApplications } = useApplicationsApi();
@@ -83,12 +85,12 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
   };
 
   const calculateDuration = (startDate: string, endDate?: string): string => {
-    if (!endDate) return '1 jour';
+    if (!endDate) return t('common.days', { count: 1 });
     const start = new Date(startDate);
     const end = new Date(endDate);
     const diffTime = Math.abs(end.getTime() - start.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return `${diffDays} jour${diffDays > 1 ? 's' : ''}`;
+    return t(diffDays === 1 ? 'common.days' : 'common.days_plural', { count: diffDays });
   };
 
   const calculateDaysLeft = (endDate: string): number => {
@@ -428,7 +430,7 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
         }
       } catch (err) {
         console.error('Error fetching guard history:', err);
-        setError('Erreur lors du chargement de l\'historique des gardes');
+        setError(t('guardHistory.error'));
       } finally {
         setIsLoading(false);
       }
@@ -447,12 +449,12 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
 
   const handleSubmitRating = async () => {
     if (!selectedGuard?.ownerUsername || ratingScore === 0) {
-      Alert.alert('Erreur', 'Veuillez sélectionner une note');
+      Alert.alert(t('common.error'), t('guardHistory.modals.errorSelectRating'));
       return;
     }
 
     if (!user?.username) {
-      Alert.alert('Erreur', 'Utilisateur non connecté');
+      Alert.alert(t('common.error'), t('guardHistory.modals.errorNotLoggedIn'));
       return;
     }
 
@@ -481,10 +483,10 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
       // Refresh guard history to show updated rating
       await fetchGuardHistory();
       
-      Alert.alert('Succès', 'Votre évaluation a été enregistrée');
+      Alert.alert(t('common.success'), t('guardHistory.modals.success'));
     } catch (err) {
       console.error('Error submitting rating:', err);
-      Alert.alert('Erreur', 'Impossible d\'enregistrer l\'évaluation. Veuillez réessayer.');
+      Alert.alert(t('common.error'), t('guardHistory.modals.errorSaving'));
     } finally {
       setIsSubmittingRating(false);
     }
@@ -495,19 +497,19 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
       case "completed":
         return (
           <View style={[styles.badge, styles.completedBadge]}>
-            <Text style={styles.completedBadgeText}>Terminée</Text>
+            <Text style={styles.completedBadgeText}>{t('guardHistory.badges.completed')}</Text>
           </View>
         );
       case "in_progress":
         return (
           <View style={[styles.badge, styles.inProgressBadge]}>
-            <Text style={styles.inProgressBadgeText}>En cours</Text>
+            <Text style={styles.inProgressBadgeText}>{t('guardHistory.badges.inProgress')}</Text>
           </View>
         );
       case "confirmed":
         return (
           <View style={[styles.badge, styles.confirmedBadge]}>
-            <Text style={styles.confirmedBadgeText}>Confirmée</Text>
+            <Text style={styles.confirmedBadgeText}>{t('guardHistory.badges.confirmed')}</Text>
           </View>
         );
       default:
@@ -540,19 +542,19 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
 
         <View style={styles.detailsGrid}>
           <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Période :</Text>
+            <Text style={styles.detailLabel}>{t('guardHistory.details.period')}</Text>
             <Text style={styles.detailValue}>{guard.period}</Text>
           </View>
           <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Durée :</Text>
+            <Text style={styles.detailLabel}>{t('guardHistory.details.duration')}</Text>
             <Text style={styles.detailValue}>{guard.duration}</Text>
           </View>
           <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Paiement :</Text>
+            <Text style={styles.detailLabel}>{t('guardHistory.details.payment')}</Text>
             <Text style={[styles.detailValue, styles.paymentText]}>{guard.payment}€</Text>
           </View>
           <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Photos :</Text>
+            <Text style={styles.detailLabel}>{t('guardHistory.details.photos')}</Text>
             <View style={styles.photosRow}>
               <Icon name="camera" size={12} color={theme.colors.mutedForeground} />
               <Text style={styles.detailValue}>{guard.photos}</Text>
@@ -596,12 +598,12 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
               onPress={() => handleOpenRatingModal(guard)}
             >
               <Icon name="star" size={16} color={theme.colors.foreground} style={styles.buttonIcon} />
-              <Text style={styles.buttonText}>Noter le propriétaire</Text>
+              <Text style={styles.buttonText}>{t('guardHistory.actions.rateOwner')}</Text>
             </Button>
           )}
           <Button variant="ghost" size="sm" style={styles.contactButton}>
             <Icon name="chatbubble" size={16} color={theme.colors.foreground} style={styles.buttonIcon} />
-            <Text style={styles.contactButtonText}>Contacter</Text>
+            <Text style={styles.contactButtonText}>{t('guardHistory.actions.contact')}</Text>
           </Button>
         </View>
 
@@ -639,19 +641,19 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
 
         <View style={styles.detailsGrid}>
           <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Période :</Text>
+            <Text style={styles.detailLabel}>{t('guardHistory.details.period')}</Text>
             <Text style={styles.detailValue}>{guard.period}</Text>
           </View>
           <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Durée :</Text>
+            <Text style={styles.detailLabel}>{t('guardHistory.details.duration')}</Text>
             <Text style={styles.detailValue}>{guard.duration}</Text>
           </View>
           <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Paiement :</Text>
+            <Text style={styles.detailLabel}>{t('guardHistory.details.payment')}</Text>
             <Text style={[styles.detailValue, styles.paymentText]}>{guard.payment}€</Text>
           </View>
           <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Propriétaire :</Text>
+            <Text style={styles.detailLabel}>{t('guardHistory.details.owner')}</Text>
             <Text style={styles.detailValue}>{guard.owner}</Text>
           </View>
         </View>
@@ -672,11 +674,11 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
         <View style={styles.actionButtons}>
           <Button variant="outline" size="sm" style={styles.detailsButton}>
             <Icon name="calendar" size={16} color={theme.colors.foreground} style={styles.buttonIcon} />
-            <Text style={styles.buttonText}>Voir détails</Text>
+            <Text style={styles.buttonText}>{t('guardHistory.actions.viewDetails')}</Text>
           </Button>
           <Button variant="ghost" size="sm" style={styles.messageButton}>
             <Icon name="chatbubble" size={16} color={theme.colors.foreground} style={styles.buttonIcon} />
-            <Text style={styles.buttonText}>Message</Text>
+            <Text style={styles.buttonText}>{t('guardHistory.actions.message')}</Text>
           </Button>
         </View>
       </CardContent>
@@ -709,18 +711,18 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
         <View style={styles.currentGuardAlert}>
           <View style={styles.alertHeader}>
             <Icon name="time" size={16} color={theme.colors.primary} />
-            <Text style={styles.alertTitle}>Garde en cours</Text>
+            <Text style={styles.alertTitle}>{t('guardHistory.current.alertTitle')}</Text>
           </View>
-          <Text style={styles.alertText}>Plus que {guard.daysLeft} jours restants</Text>
+          <Text style={styles.alertText}>{t('guardHistory.current.daysLeft', { count: guard.daysLeft })}</Text>
         </View>
 
         <View style={styles.detailsGrid}>
           <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Période :</Text>
+            <Text style={styles.detailLabel}>{t('guardHistory.details.period')}</Text>
             <Text style={styles.detailValue}>{guard.period}</Text>
           </View>
           <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Paiement :</Text>
+            <Text style={styles.detailLabel}>{t('guardHistory.details.payment')}</Text>
             <Text style={[styles.detailValue, styles.paymentText]}>{guard.payment}€</Text>
           </View>
         </View>
@@ -741,11 +743,11 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
         <View style={styles.actionButtons}>
           <Button size="sm" style={styles.addPhotosButton}>
             <Icon name="camera" size={16} color={theme.colors.primaryForeground} style={styles.buttonIcon} />
-            <Text style={styles.primaryButtonText}>Ajouter photos</Text>
+            <Text style={styles.primaryButtonText}>{t('guardHistory.actions.addPhotos')}</Text>
           </Button>
           <Button variant="outline" size="sm" style={styles.messageButton}>
             <Icon name="chatbubble" size={16} color={theme.colors.foreground} style={styles.buttonIcon} />
-            <Text style={styles.buttonText}>Message</Text>
+            <Text style={styles.buttonText}>{t('guardHistory.actions.message')}</Text>
           </Button>
         </View>
       </CardContent>
@@ -763,9 +765,9 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
           <Card style={styles.emptyCard}>
             <CardContent style={styles.emptyContent}>
               <Icon name="time" size={48} color={theme.colors.mutedForeground} />
-              <Text style={styles.emptyTitle}>Aucune garde en cours</Text>
+              <Text style={styles.emptyTitle}>{t('guardHistory.empty.noCurrent')}</Text>
               <Text style={styles.emptyText}>
-                Vous n'avez actuellement aucune garde active.
+                {t('guardHistory.empty.noCurrentDesc')}
               </Text>
             </CardContent>
           </Card>
@@ -780,9 +782,9 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
           <Card style={styles.emptyCard}>
             <CardContent style={styles.emptyContent}>
               <Icon name="calendar" size={48} color={theme.colors.mutedForeground} />
-              <Text style={styles.emptyTitle}>Aucune garde planifiée</Text>
+              <Text style={styles.emptyTitle}>{t('guardHistory.empty.noUpcoming')}</Text>
               <Text style={styles.emptyText}>
-                Vous n'avez aucune garde prévue pour le moment.
+                {t('guardHistory.empty.noUpcomingDesc')}
               </Text>
             </CardContent>
           </Card>
@@ -797,9 +799,9 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
           <Card style={styles.emptyCard}>
             <CardContent style={styles.emptyContent}>
               <Icon name="checkmark-circle" size={48} color={theme.colors.mutedForeground} />
-              <Text style={styles.emptyTitle}>Aucune garde terminée</Text>
+              <Text style={styles.emptyTitle}>{t('guardHistory.empty.noCompleted')}</Text>
               <Text style={styles.emptyText}>
-                Votre historique de gardes apparaîtra ici.
+                {t('guardHistory.empty.noCompletedDesc')}
               </Text>
             </CardContent>
           </Card>
@@ -825,13 +827,13 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
     return (
       <View style={styles.container}>
         <PageHeader
-          title="Mes gardes"
+          title={t('guardHistory.title')}
           showBackButton={true}
           onBack={onBack}
         />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={styles.loadingText}>Chargement de l'historique...</Text>
+          <Text style={styles.loadingText}>{t('guardHistory.loading')}</Text>
         </View>
       </View>
     );
@@ -841,7 +843,7 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
     return (
       <View style={styles.container}>
         <PageHeader
-          title="Mes gardes"
+          title={t('guardHistory.title')}
           showBackButton={true}
           onBack={onBack}
         />
@@ -851,7 +853,7 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
           <Button onPress={() => {
             fetchGuardHistory();
           }} style={styles.retryButton}>
-            <Text>Réessayer</Text>
+            <Text>{t('guardHistory.retry')}</Text>
           </Button>
         </View>
       </View>
@@ -861,7 +863,7 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
   return (
     <View style={styles.container}>
       <PageHeader
-        title="Mes gardes"
+        title={t('guardHistory.title')}
         showBackButton={true}
         onBack={onBack}
       />
@@ -870,23 +872,23 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
         {/* Statistiques */}
         <Card style={styles.statsCard}>
           <CardContent>
-            <Text style={styles.statsTitle}>Vos statistiques</Text>
+            <Text style={styles.statsTitle}>{t('guardHistory.stats.title')}</Text>
             <View style={styles.statsGrid}>
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>{guardHistory.completed.length}</Text>
-                <Text style={styles.statLabel}>Gardes terminées</Text>
+                <Text style={styles.statLabel}>{t('guardHistory.stats.completed')}</Text>
               </View>
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>
                   {totalEarnings}€
                 </Text>
-                <Text style={styles.statLabel}>Gains totaux</Text>
+                <Text style={styles.statLabel}>{t('guardHistory.stats.totalEarnings')}</Text>
               </View>
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>
                   {averageRating > 0 ? averageRating.toFixed(1) : '0'}
                 </Text>
-                <Text style={styles.statLabel}>Note moyenne</Text>
+                <Text style={styles.statLabel}>{t('guardHistory.stats.averageRating')}</Text>
               </View>
             </View>
           </CardContent>
@@ -896,9 +898,9 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
         <View style={styles.tabsContainer}>
           <View style={styles.tabsList}>
             {[
-              { key: "current", label: "En cours" },
-              { key: "upcoming", label: "À venir" },
-              { key: "completed", label: "Terminées" }
+              { key: "current", label: t('guardHistory.tabs.current') },
+              { key: "upcoming", label: t('guardHistory.tabs.upcoming') },
+              { key: "completed", label: t('guardHistory.tabs.completed') }
             ].map((tab) => (
               <TouchableOpacity
                 key={tab.key}
@@ -929,7 +931,7 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Noter le propriétaire</Text>
+              <Text style={styles.modalTitle}>{t('guardHistory.modals.rateOwnerTitle')}</Text>
               <TouchableOpacity
                 onPress={() => setRatingModalVisible(false)}
                 style={styles.modalCloseButton}
@@ -941,10 +943,10 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
             {selectedGuard && (
               <>
                 <Text style={styles.modalSubtitle}>{selectedGuard.title}</Text>
-                <Text style={styles.modalOwnerText}>Propriétaire: {selectedGuard.owner}</Text>
+                <Text style={styles.modalOwnerText}>{t('guardHistory.modals.owner', { name: selectedGuard.owner })}</Text>
 
                 <View style={styles.ratingInputContainer}>
-                  <Text style={styles.ratingLabel}>Note (1-5 étoiles)</Text>
+                  <Text style={styles.ratingLabel}>{t('guardHistory.modals.ratingLabel')}</Text>
                   <View style={styles.ratingStarsInput}>
                     {[...Array(5)].map((_, i) => (
                       <TouchableOpacity
@@ -961,16 +963,16 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
                     ))}
                   </View>
                   {ratingScore > 0 && (
-                    <Text style={styles.ratingScoreText}>{ratingScore} / 5</Text>
+                    <Text style={styles.ratingScoreText}>{t('guardHistory.modals.ratingScore', { score: ratingScore })}</Text>
                   )}
                 </View>
 
                 <View style={styles.commentContainer}>
-                  <Text style={styles.commentLabel}>Commentaire (optionnel)</Text>
+                  <Text style={styles.commentLabel}>{t('guardHistory.modals.commentLabel')}</Text>
                   <Textarea
                     value={ratingComment}
                     onChangeText={setRatingComment}
-                    placeholder="Partagez votre expérience..."
+                    placeholder={t('guardHistory.modals.commentPlaceholder')}
                     rows={4}
                     style={styles.commentInput}
                   />
@@ -982,7 +984,7 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
                     onPress={() => setRatingModalVisible(false)}
                     style={styles.modalCancelButton}
                   >
-                    <Text>Annuler</Text>
+                    <Text>{t('guardHistory.modals.cancel')}</Text>
                   </Button>
                   <Button
                     onPress={handleSubmitRating}
@@ -992,7 +994,7 @@ export function GuardHistoryPage({ onBack }: GuardHistoryPageProps) {
                     {isSubmittingRating ? (
                       <ActivityIndicator size="small" color={theme.colors.primaryForeground} />
                     ) : (
-                      <Text style={styles.modalSubmitText}>Enregistrer</Text>
+                      <Text style={styles.modalSubmitText}>{t('guardHistory.modals.save')}</Text>
                     )}
                   </Button>
                 </View>

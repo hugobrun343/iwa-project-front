@@ -13,6 +13,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { DiscussionDto, MessageDto, PublicUserDto, AnnouncementResponseDto } from '../../types/api';
 import { useUserApi } from '../../hooks/api/useUserApi';
 import { useAnnouncementsApi } from '../../hooks/api/useAnnouncementsApi';
+import { useTranslation } from 'react-i18next';
 
 interface ConversationItem {
   id: number;
@@ -40,6 +41,7 @@ interface MessagesPageProps {
 }
 
 export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: MessagesPageProps) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const {
@@ -101,13 +103,13 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
     const diffInMs = now.getTime() - date.getTime();
     const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
     if (diffInDays === 1) {
-      return 'Hier';
+      return t('messages.conversation.lastMessage', { time: date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) });
     }
     if (diffInDays < 7) {
       return date.toLocaleDateString('fr-FR', { weekday: 'short' });
     }
     return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-  }, []);
+  }, [t]);
 
   const formatMessageTimestamp = useCallback((value?: string) => {
     if (!value) return '';
@@ -145,7 +147,7 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
       } catch (error) {
         console.error('Erreur lors du chargement des discussions:', error);
         if (!isCancelled) {
-          setDiscussionsError("Impossible de charger vos discussions pour le moment.");
+          setDiscussionsError(t('messages.conversation.errorLoadingDiscussions'));
         }
       } finally {
         if (!isCancelled) {
@@ -190,7 +192,7 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
               return [id, profile] as const;
             }
           } catch (error) {
-            console.warn("Impossible de récupérer le profil utilisateur", id, error);
+            console.warn("Error fetching user profile", id, error);
           }
           return null;
         }),
@@ -247,7 +249,7 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
               return [id, announcement] as const;
             }
           } catch (error) {
-            console.warn("Impossible de récupérer l'annonce", id, error);
+            console.warn("Error fetching announcement", id, error);
           }
           return null;
         }),
@@ -306,9 +308,9 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
           }
         }
       } catch (error) {
-        console.error('Erreur lors du chargement des messages:', error);
+        console.error('Error loading messages:', error);
         if (!isCancelled) {
-          setMessagesError("Impossible de charger les messages de cette conversation.");
+          setMessagesError(t('messages.conversation.errorLoadingMessages'));
         }
       } finally {
         if (!isCancelled) {
@@ -335,7 +337,7 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
       const summary = conversationSummaries[discussion.id];
       const rawTimestamp = summary?.lastMessageAt ?? discussion.lastMessageAt;
       const fullName = profile ? `${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim() : '';
-      const displayName = fullName || profile?.username || counterpartId || 'Utilisateur';
+      const displayName = fullName || profile?.username || counterpartId || t('common.user');
       const lastMessage = summary?.lastMessage ?? '';
 
       const announcement = discussion.announcementId ? announcementDetails[discussion.announcementId] : undefined;
@@ -346,7 +348,7 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
           id: discussion.id,
           counterpartId,
           name: displayName,
-          lastMessage: lastMessage || 'Ouvrir la conversation',
+          lastMessage: lastMessage || t('messages.conversation.openConversation'),
           timestamp: formatListTimestamp(rawTimestamp),
           unreadCount: 0,
           isOnline: false,
@@ -438,8 +440,8 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
         setNewMessage('');
       }
     } catch (error) {
-      console.error("Erreur lors de l'envoi du message:", error);
-      setMessagesError("Impossible d'envoyer le message. Veuillez réessayer.");
+      console.error("Error sending message:", error);
+      setMessagesError(t('messages.conversation.errorSendingMessage'));
     } finally {
       setIsSendingMessage(false);
     }
@@ -474,8 +476,8 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
               </Text>
               <Text style={styles.conversationStatus}>
                 {selectedConversationItem.timestamp
-                  ? `Dernier message ${selectedConversationItem.timestamp}`
-                  : 'Discussion ouverte'}
+                  ? t('messages.conversation.lastMessage', { time: selectedConversationItem.timestamp })
+                  : t('messages.conversation.discussionOpened')}
               </Text>
             </View>
           </View>
@@ -526,12 +528,12 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
             scrollViewRef.current?.scrollToEnd({ animated: true });
           }}
         >
-          {isLoadingMessages && <Text style={styles.loadingText}>Chargement des messages…</Text>}
+          {isLoadingMessages && <Text style={styles.loadingText}>{t('messages.conversation.loadingMessages')}</Text>}
           {!isLoadingMessages && messagesError && (
             <Text style={styles.errorText}>{messagesError}</Text>
           )}
           {!isLoadingMessages && !messagesError && uiMessages.length === 0 && (
-            <Text style={styles.loadingText}>Aucun message pour le moment.</Text>
+            <Text style={styles.loadingText}>{t('messages.conversation.noMessages')}</Text>
           )}
           {uiMessages.map((message) => (
             <View
@@ -574,7 +576,7 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
 
           <View style={styles.inputWrapper}>
             <Input
-              placeholder="Tapez votre message..."
+              placeholder={t('messages.conversation.typeMessage')}
               value={newMessage}
               onChangeText={setNewMessage}
               style={styles.textInput}
@@ -624,7 +626,7 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
   return (
     <View style={styles.container}>
       <PageHeader
-        title="Messages"
+        title={t('messages.title')}
         icon="chatbubble"
         showBackButton={Boolean(onBack)}
         onBack={onBack}
@@ -639,7 +641,7 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
             style={styles.searchIcon}
           />
           <Input
-            placeholder="Rechercher une conversation..."
+            placeholder={t('messages.searchPlaceholder')}
             style={styles.searchInput}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -649,7 +651,7 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
 
       <ScrollView style={styles.conversationsList} showsVerticalScrollIndicator={false}>
         {isLoadingDiscussions && (
-          <Text style={styles.loadingText}>Chargement des conversations…</Text>
+          <Text style={styles.loadingText}>{t('messages.conversation.loadingConversations')}</Text>
         )}
         {!isLoadingDiscussions && discussionsError && (
           <Text style={styles.errorText}>{discussionsError}</Text>
@@ -659,11 +661,11 @@ export function MessagesPage({ onBack, initialDiscussionId, onListingClick }: Me
           filteredConversations.length === 0 && (
             <View style={styles.emptyState}>
               <Icon name="Search" size={64} color={theme.colors.mutedForeground} />
-              <Text style={styles.emptyTitle}>Aucune conversation</Text>
+              <Text style={styles.emptyTitle}>{t('messages.empty.noConversations')}</Text>
               <Text style={styles.emptyDescription}>
                 {searchQuery
-                  ? 'Aucun résultat pour votre recherche'
-                  : 'Vos conversations apparaîtront ici'}
+                  ? t('messages.empty.noSearchResults')
+                  : t('messages.empty.conversationsWillAppear')}
               </Text>
             </View>
           )}

@@ -9,6 +9,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Icon } from '../../components/ui/Icon';
 import { ListingCard } from '../../components/listing/ListingCard';
 import { theme } from '../../styles/theme';
+import { useTranslation } from 'react-i18next';
 
 interface Listing {
   id: string;
@@ -33,6 +34,7 @@ interface FavoritesPageProps {
 }
 
 export function FavoritesPage({ onBack, allListings, onLikeToggle, onListingClick }: FavoritesPageProps) {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("all");
 
@@ -51,16 +53,16 @@ export function FavoritesPage({ onBack, allListings, onLikeToggle, onListingClic
   });
 
   const filterOptions = [
-    { value: "all", label: "Tous", count: favoriteListings.length },
-    { value: "animaux", label: "Animaux", count: favoriteListings.filter(l => l.tags.includes("Animaux")).length },
-    { value: "plantes", label: "Plantes", count: favoriteListings.filter(l => l.tags.includes("Plantes")).length },
-    { value: "jardin", label: "Jardin", count: favoriteListings.filter(l => l.tags.includes("Jardin")).length },
+    { value: "all", label: t('favorites.filters.all'), count: favoriteListings.length },
+    { value: "animaux", label: t('favorites.filters.animals'), count: favoriteListings.filter(l => l.tags.includes("Animaux")).length },
+    { value: "plantes", label: t('favorites.filters.plants'), count: favoriteListings.filter(l => l.tags.includes("Plantes")).length },
+    { value: "jardin", label: t('favorites.filters.garden'), count: favoriteListings.filter(l => l.tags.includes("Jardin")).length },
   ];
 
   return (
     <View style={styles.container}>
       <PageHeader 
-        title="Mes favoris"
+        title={t('favorites.title')}
         icon="heart-outline"
       />
       
@@ -68,7 +70,7 @@ export function FavoritesPage({ onBack, allListings, onLikeToggle, onListingClic
       <View style={styles.searchSection}>
         {/* Search Bar */}
         <SearchBar 
-          placeholder="Rechercher dans mes favoris..."
+          placeholder={t('favorites.searchPlaceholder')}
           onSearch={(query) => setSearchQuery(query)}
           initialValue={searchQuery}
         />
@@ -91,20 +93,20 @@ export function FavoritesPage({ onBack, allListings, onLikeToggle, onListingClic
             {favoriteListings.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Icon name="Heart" size={64} color={theme.colors.mutedForeground} />
-                <Text style={styles.emptyTitle}>Aucun favori</Text>
+                <Text style={styles.emptyTitle}>{t('favorites.empty.noFavorites')}</Text>
                 <Text style={styles.emptyDescription}>
-                  Ajoutez des annonces à vos favoris en appuyant sur le cœur
+                  {t('favorites.empty.addFavorites')}
                 </Text>
                 <Button onPress={onBack} variant="outline" style={styles.discoverButton}>
-                  Découvrir les annonces
+                  {t('favorites.empty.discoverListings')}
                 </Button>
               </View>
             ) : (
               <View style={styles.emptyContainer}>
                 <Icon name="Search" size={64} color={theme.colors.mutedForeground} />
-                <Text style={styles.emptyTitle}>Aucun résultat</Text>
+                <Text style={styles.emptyTitle}>{t('favorites.empty.noResults')}</Text>
                 <Text style={styles.emptyDescription}>
-                  Essayez de modifier vos filtres de recherche
+                  {t('favorites.empty.tryFilters')}
                 </Text>
                 <Button 
                   onPress={() => {
@@ -114,7 +116,7 @@ export function FavoritesPage({ onBack, allListings, onLikeToggle, onListingClic
                   variant="outline"
                   style={styles.clearButton}
                 >
-                  Effacer les filtres
+                  {t('favorites.empty.clearFilters')}
                 </Button>
               </View>
             )}

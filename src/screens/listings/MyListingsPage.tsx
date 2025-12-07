@@ -17,6 +17,7 @@ import { useRatingsApi } from '../../hooks/api/useRatingsApi';
 import { useUserApi } from '../../hooks/api/useUserApi';
 import { normalizeImageList } from '../../utils/imageUtils';
 import { AnnouncementStatus, RatingDto } from '../../types/api';
+import { useTranslation } from 'react-i18next';
 
 interface MyListingsPageProps {
   onBack: () => void;
@@ -25,6 +26,7 @@ interface MyListingsPageProps {
 }
 
 export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyListingsPageProps) {
+  const { t } = useTranslation();
   const [selectedTab, setSelectedTab] = useState("active");
   const [userListings, setUserListings] = useState<any>({ active: [], completed: [] });
   const [isLoading, setIsLoading] = useState(true);
@@ -138,9 +140,9 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge variant="outline" style={styles.activeBadge}>Active</Badge>;
+        return <Badge variant="outline" style={styles.activeBadge}>{t('myListings.badges.active')}</Badge>;
       case "completed":
-        return <Badge variant="outline" style={styles.completedBadge}>Terminée</Badge>;
+        return <Badge variant="outline" style={styles.completedBadge}>{t('myListings.badges.completed')}</Badge>;
       default:
         return null;
     }
@@ -155,15 +157,15 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
     if (!selectedListingForMenu) return;
     
     Alert.alert(
-      "Supprimer l'annonce",
-      `Êtes-vous sûr de vouloir supprimer "${selectedListingForMenu.title}" ? Cette action est irréversible.`,
+      t('myListings.modals.deleteTitle'),
+      t('myListings.modals.deleteConfirm', { title: selectedListingForMenu.title }),
       [
         {
-          text: "Annuler",
+          text: t('myListings.modals.cancel'),
           style: "cancel"
         },
         {
-          text: "Supprimer",
+          text: t('myListings.modals.delete'),
           style: "destructive",
           onPress: async () => {
             try {
@@ -173,7 +175,7 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
               await loadListingsWithGuardianInfo();
             } catch (error) {
               console.error('Error deleting announcement:', error);
-              Alert.alert("Erreur", "Impossible de supprimer l'annonce.");
+              Alert.alert(t('common.error'), t('myListings.modals.errorDeleting'));
             }
           }
         }
@@ -196,18 +198,18 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
       await loadListingsWithGuardianInfo();
     } catch (error) {
       console.error('Error updating status:', error);
-      Alert.alert("Erreur", "Impossible de modifier le statut de l'annonce.");
+      Alert.alert(t('common.error'), t('myListings.modals.errorUpdatingStatus'));
     }
   };
 
   const getStatusLabel = (status: AnnouncementStatus): string => {
     switch (status) {
       case 'PUBLISHED':
-        return 'Publiée';
+        return t('myListings.modals.statuses.published');
       case 'IN_PROGRESS':
-        return 'En cours';
+        return t('myListings.modals.statuses.inProgress');
       case 'COMPLETED':
-        return 'Terminée';
+        return t('myListings.modals.statuses.completed');
       default:
         return status;
     }
@@ -243,11 +245,11 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
 
         <View style={styles.detailsGrid}>
           <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Prix :</Text>
+            <Text style={styles.detailLabel}>{t('myListings.details.price')}</Text>
             <Text style={[styles.detailValue, styles.priceValue]}>{listing.price}€/jour</Text>
           </View>
           <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Période :</Text>
+            <Text style={styles.detailLabel}>{t('myListings.details.period')}</Text>
             <Text style={styles.detailValue}>{listing.period}</Text>
           </View>
           {listing.status !== 'completed' && (
@@ -261,7 +263,7 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
               }}
               disabled={listing.applications === 0}
             >
-              <Text style={styles.detailLabel}>Candidatures :</Text>
+              <Text style={styles.detailLabel}>{t('myListings.details.applications')}</Text>
               <View style={styles.statRow}>
                 <Icon name="person" size={12} color={theme.colors.mutedForeground} />
                 <Text style={[styles.detailValue, listing.applications > 0 && styles.clickableValue]}>
@@ -298,7 +300,7 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
                     <Icon name="person" size={20} color={theme.colors.mutedForeground} />
                   )}
                 </View>
-                <Text style={styles.guardianText}>Gardé par {listing.guardian}</Text>
+                <Text style={styles.guardianText}>{t('myListings.details.guardedBy', { name: listing.guardian })}</Text>
               </View>
             </View>
             <View style={styles.guardianActions}>
@@ -324,7 +326,7 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
                   styles.buttonText,
                   listing.ratingGiven && styles.disabledButtonText
                 ]}>
-                  {listing.ratingGiven ? 'Déjà noté' : 'Noter le gardien'}
+                  {listing.ratingGiven ? t('myListings.details.alreadyRated') : t('myListings.details.rateGuardian')}
                 </Text>
               </Button>
               <Button 
@@ -341,7 +343,7 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
 
         <View style={styles.listingFooter}>
           {listing.status !== 'completed' && (
-            <Text style={styles.createdAt}>Créée {listing.createdAt}</Text>
+            <Text style={styles.createdAt}>{t('myListings.details.created', { date: listing.createdAt })}</Text>
           )}
           <View style={styles.actionButtons}>
             {listing.status !== 'completed' && (
@@ -353,7 +355,7 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
                   onPress={() => onEditListing?.(listing.id)}
                 >
                   <Icon name="create" size={16} color={theme.colors.foreground} style={styles.buttonIcon} />
-                  <Text style={styles.buttonText}>Modifier</Text>
+                  <Text style={styles.buttonText}>{t('myListings.details.edit')}</Text>
                 </Button>
                 <Button 
                   variant="ghost" 
@@ -390,7 +392,7 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
   return (
     <View style={styles.container}>
       <PageHeader 
-        title="Mes annonces"
+        title={t('myListings.title')}
         showBackButton={true}
         onBack={onBack}
         rightButton={{
@@ -403,21 +405,21 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
       <View style={styles.statsHeader}>
         <View style={styles.statItem}>
           <Text style={styles.statValue}>{tabCounts.active}</Text>
-          <Text style={styles.statLabel}>Actives</Text>
+          <Text style={styles.statLabel}>{t('myListings.stats.active')}</Text>
         </View>
         <View style={styles.statItem}>
           <Text style={styles.statValue}>
             {userListings.active.reduce((acc, listing) => acc + listing.applications, 0)}
           </Text>
-          <Text style={styles.statLabel}>Candidatures</Text>
+          <Text style={styles.statLabel}>{t('myListings.stats.applications')}</Text>
         </View>
       </View>
 
       {/* Tabs */}
       <View style={styles.tabsContainer}>
         {[
-          { id: "active", label: "Actives", count: tabCounts.active },
-          { id: "completed", label: "Terminées", count: tabCounts.completed },
+          { id: "active", label: t('myListings.tabs.active'), count: tabCounts.active },
+          { id: "completed", label: t('myListings.tabs.completed'), count: tabCounts.completed },
         ].map((tab) => (
           <Button
             key={tab.id}
@@ -449,17 +451,17 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
           <View style={styles.emptyState}>
             <Icon name="Plus" size={64} color={theme.colors.mutedForeground} />
             <Text style={styles.emptyTitle}>
-              {selectedTab === "active" ? "Aucune annonce active" : "Aucune garde terminée"}
+              {selectedTab === "active" ? t('myListings.empty.noActive') : t('myListings.empty.noCompleted')}
             </Text>
             <Text style={styles.emptyDescription}>
               {selectedTab === "active" 
-                ? "Créez votre première annonce pour commencer à recevoir des candidatures."
-                : "Vos annonces terminées apparaîtront ici avec les détails de la garde."}
+                ? t('myListings.empty.createFirst')
+                : t('myListings.empty.completedWillAppear')}
             </Text>
             {selectedTab === "active" && (
               <Button onPress={onCreateListing} style={styles.emptyActionButton}>
                 <Icon name="Plus" size={16} color={theme.colors.primaryForeground} />
-                <Text style={styles.emptyActionButtonText}>Créer une annonce</Text>
+                <Text style={styles.emptyActionButtonText}>{t('myListings.empty.createListing')}</Text>
               </Button>
             )}
           </View>
@@ -500,7 +502,7 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
               onPress={handleChangeStatus}
             >
               <Icon name="swap-vertical" size={20} color={theme.colors.foreground} />
-              <Text style={styles.menuItemText}>Changer le statut</Text>
+              <Text style={styles.menuItemText}>{t('myListings.details.changeStatus')}</Text>
             </TouchableOpacity>
             <View style={styles.menuDivider} />
             <TouchableOpacity
@@ -508,7 +510,7 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
               onPress={handleDelete}
             >
               <Icon name="trash" size={20} color="#ef4444" />
-              <Text style={[styles.menuItemText, styles.deleteMenuText]}>Supprimer</Text>
+              <Text style={[styles.menuItemText, styles.deleteMenuText]}>{t('myListings.details.delete')}</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -527,7 +529,7 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
         <View style={styles.statusModalOverlay}>
           <View style={styles.statusModalContent}>
             <View style={styles.statusModalHeader}>
-              <Text style={styles.statusModalTitle}>Changer le statut</Text>
+              <Text style={styles.statusModalTitle}>{t('myListings.modals.changeStatusTitle')}</Text>
               <TouchableOpacity
                 onPress={() => {
                   setShowStatusModal(false);
@@ -538,7 +540,7 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
               </TouchableOpacity>
             </View>
             <Text style={styles.statusModalSubtitle}>
-              Sélectionnez le nouveau statut pour "{selectedListingForMenu?.title}"
+              {t('myListings.modals.changeStatusSubtitle', { title: selectedListingForMenu?.title })}
             </Text>
             <View style={styles.statusOptions}>
               {(['PUBLISHED', 'IN_PROGRESS', 'COMPLETED'] as AnnouncementStatus[]).map((status) => (
@@ -566,7 +568,7 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Noter le gardien</Text>
+              <Text style={styles.modalTitle}>{t('myListings.modals.rateGuardianTitle')}</Text>
               <TouchableOpacity
                 onPress={() => setRatingModalVisible(false)}
                 style={styles.modalCloseButton}
@@ -578,10 +580,10 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
             {selectedListingForRating && (
               <>
                 <Text style={styles.modalSubtitle}>{selectedListingForRating.title}</Text>
-                <Text style={styles.modalOwnerText}>Gardien: {selectedListingForRating.guardian}</Text>
+                <Text style={styles.modalOwnerText}>{t('myListings.modals.guardian', { name: selectedListingForRating.guardian })}</Text>
 
                 <View style={styles.ratingInputContainer}>
-                  <Text style={styles.ratingLabel}>Note (1-5 étoiles)</Text>
+                  <Text style={styles.ratingLabel}>{t('myListings.modals.ratingLabel')}</Text>
                   <View style={styles.ratingStarsInput}>
                     {[...Array(5)].map((_, i) => (
                       <TouchableOpacity
@@ -598,16 +600,16 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
                     ))}
                   </View>
                   {ratingScore > 0 && (
-                    <Text style={styles.ratingScoreText}>{ratingScore} / 5</Text>
+                    <Text style={styles.ratingScoreText}>{t('myListings.modals.ratingScore', { score: ratingScore })}</Text>
                   )}
                 </View>
 
                 <View style={styles.commentContainer}>
-                  <Text style={styles.commentLabel}>Commentaire (optionnel)</Text>
+                  <Text style={styles.commentLabel}>{t('myListings.modals.commentLabel')}</Text>
                   <Textarea
                     value={ratingComment}
                     onChangeText={setRatingComment}
-                    placeholder="Partagez votre expérience..."
+                    placeholder={t('myListings.modals.commentPlaceholder')}
                     rows={4}
                     style={styles.commentInput}
                   />
@@ -619,17 +621,17 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
                     onPress={() => setRatingModalVisible(false)}
                     style={styles.modalCancelButton}
                   >
-                    <Text>Annuler</Text>
+                    <Text>{t('myListings.modals.cancel')}</Text>
                   </Button>
                   <Button
                     onPress={async () => {
                       if (!selectedListingForRating?.guardianUsername || ratingScore === 0) {
-                        Alert.alert('Erreur', 'Veuillez sélectionner une note');
+                        Alert.alert(t('common.error'), t('myListings.modals.errorSelectRating'));
                         return;
                       }
 
                       if (!user?.username) {
-                        Alert.alert('Erreur', 'Utilisateur non connecté');
+                        Alert.alert(t('common.error'), t('myListings.modals.errorNotLoggedIn'));
                         return;
                       }
 
@@ -654,10 +656,10 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
                         setRatingComment('');
                         await loadListingsWithGuardianInfo();
                         
-                        Alert.alert('Succès', 'Votre évaluation a été enregistrée');
+                        Alert.alert(t('common.success'), t('myListings.modals.successRating'));
                       } catch (err) {
                         console.error('Error submitting rating:', err);
-                        Alert.alert('Erreur', 'Impossible d\'enregistrer l\'évaluation. Veuillez réessayer.');
+                        Alert.alert(t('common.error'), t('myListings.modals.errorSavingRating'));
                       } finally {
                         setIsSubmittingRating(false);
                       }
@@ -668,7 +670,7 @@ export function MyListingsPage({ onBack, onCreateListing, onEditListing }: MyLis
                     {isSubmittingRating ? (
                       <ActivityIndicator size="small" color={theme.colors.primaryForeground} />
                     ) : (
-                      <Text style={styles.modalSubmitText}>Enregistrer</Text>
+                      <Text style={styles.modalSubmitText}>{t('myListings.modals.save')}</Text>
                     )}
                   </Button>
                 </View>
