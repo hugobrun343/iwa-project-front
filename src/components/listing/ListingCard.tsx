@@ -5,6 +5,7 @@ import { Badge } from '../ui/Badge';
 import { Icon } from '../ui/Icon';
 import { ImageWithFallback } from '../ui/ImageWithFallback';
 import { theme } from '../../styles/theme';
+import { useTranslation } from 'react-i18next';
 
 interface ListingCardProps {
   id: string;
@@ -41,6 +42,7 @@ export function ListingCard({
   ownerUsername,
   onLikeToggle,
 }: ListingCardProps) {
+  const { t } = useTranslation();
   return (
     <Card style={styles.card}>
       <View style={styles.imageContainer}>
@@ -103,7 +105,7 @@ export function ListingCard({
             <Text style={styles.detailText}>{period || ''}</Text>
           </View>
           <View style={styles.priceContainer}>
-            <Text style={styles.priceText}>{String(price || 0)}€/jour</Text>
+            <Text style={styles.priceText}>{t('listingCard.pricePerDay', { price: price || 0 })}</Text>
           </View>
         </View>
         
@@ -116,7 +118,7 @@ export function ListingCard({
           <View style={styles.ratingRow}>
             <Icon name="star" size={14} color="#fbbf24" />
             <Text style={styles.ratingText}>{String(rating.toFixed(1))}</Text>
-            <Text style={styles.reviewText}>({String(reviewCount)} avis)</Text>
+            <Text style={styles.reviewText}>{t('listingCard.reviews', { count: reviewCount })}</Text>
           </View>
         )}
       </CardContent>

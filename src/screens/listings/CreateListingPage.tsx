@@ -19,6 +19,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useAnnouncementsApi } from '../../hooks/api/useAnnouncementsApi';
 import { AnnouncementPayload } from '../../types/api';
 import { buildDataUri, mapUrisToImagePayload, normalizeImageList } from '../../utils/imageUtils';
+import { useTranslation } from 'react-i18next';
 
 interface CreateListingPageProps {
   onBack: () => void;
@@ -27,6 +28,7 @@ interface CreateListingPageProps {
 }
 
 export function CreateListingPage({ onBack, listingId, showBackButton = true }: CreateListingPageProps) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { createAnnouncement, updateAnnouncement, getAnnouncementById } = useAnnouncementsApi();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -60,26 +62,26 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
   });
 
   const guardTypes = [
-    { id: "homeCare", label: "Home Care", description: "Soins à domicile et assistance quotidienne" },
-    { id: "medicalCare", label: "Medical Care", description: "Soins médicaux et suivi de santé" },
-    { id: "companionship", label: "Companionship", description: "Accompagnement et compagnie" },
-    { id: "mealPreparation", label: "Meal Preparation", description: "Préparation des repas" },
-    { id: "transportation", label: "Transportation", description: "Transport et déplacements" },
-    { id: "housekeeping", label: "Housekeeping", description: "Ménage et entretien du domicile" },
-    { id: "personalCare", label: "Personal Care", description: "Soins personnels et hygiène" },
-    { id: "medicationManagement", label: "Medication Management", description: "Gestion des médicaments" },
-    { id: "physicalTherapy", label: "Physical Therapy", description: "Kinésithérapie et rééducation" },
-    { id: "nursingCare", label: "Nursing Care", description: "Soins infirmiers" },
+    { id: "homeCare", apiLabel: "Home Care", labelKey: "createListing.guardTypes.homeCare", descKey: "createListing.guardTypes.homeCareDesc" },
+    { id: "medicalCare", apiLabel: "Medical Care", labelKey: "createListing.guardTypes.medicalCare", descKey: "createListing.guardTypes.medicalCareDesc" },
+    { id: "companionship", apiLabel: "Companionship", labelKey: "createListing.guardTypes.companionship", descKey: "createListing.guardTypes.companionshipDesc" },
+    { id: "mealPreparation", apiLabel: "Meal Preparation", labelKey: "createListing.guardTypes.mealPreparation", descKey: "createListing.guardTypes.mealPreparationDesc" },
+    { id: "transportation", apiLabel: "Transportation", labelKey: "createListing.guardTypes.transportation", descKey: "createListing.guardTypes.transportationDesc" },
+    { id: "housekeeping", apiLabel: "Housekeeping", labelKey: "createListing.guardTypes.housekeeping", descKey: "createListing.guardTypes.housekeepingDesc" },
+    { id: "personalCare", apiLabel: "Personal Care", labelKey: "createListing.guardTypes.personalCare", descKey: "createListing.guardTypes.personalCareDesc" },
+    { id: "medicationManagement", apiLabel: "Medication Management", labelKey: "createListing.guardTypes.medicationManagement", descKey: "createListing.guardTypes.medicationManagementDesc" },
+    { id: "physicalTherapy", apiLabel: "Physical Therapy", labelKey: "createListing.guardTypes.physicalTherapy", descKey: "createListing.guardTypes.physicalTherapyDesc" },
+    { id: "nursingCare", apiLabel: "Nursing Care", labelKey: "createListing.guardTypes.nursingCare", descKey: "createListing.guardTypes.nursingCareDesc" },
   ];
 
   const frequencyOptions = [
-    { value: "1 fois par jour", label: "1 fois par jour" },
-    { value: "2 fois par jour", label: "2 fois par jour" },
-    { value: "3 fois par jour", label: "3 fois par jour" },
-    { value: "1 jour sur 2", label: "1 jour sur 2" },
-    { value: "1 fois par semaine", label: "1 fois par semaine" },
-    { value: "2-3 fois par semaine", label: "2-3 fois par semaine" },
-    { value: "Présence continue", label: "Présence continue" },
+    { value: "1 fois par jour", labelKey: "createListing.frequencyOptions.oncePerDay" },
+    { value: "2 fois par jour", labelKey: "createListing.frequencyOptions.twicePerDay" },
+    { value: "3 fois par jour", labelKey: "createListing.frequencyOptions.threeTimesPerDay" },
+    { value: "1 jour sur 2", labelKey: "createListing.frequencyOptions.everyOtherDay" },
+    { value: "1 fois par semaine", labelKey: "createListing.frequencyOptions.oncePerWeek" },
+    { value: "2-3 fois par semaine", labelKey: "createListing.frequencyOptions.twoThreePerWeek" },
+    { value: "Présence continue", labelKey: "createListing.frequencyOptions.continuous" },
   ];
 
   // Load announcement data if editing
@@ -124,7 +126,7 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
         }
       } catch (error) {
         console.error('Error loading announcement:', error);
-        alert('Erreur lors du chargement de l\'annonce');
+        alert(t('createListing.errors.errorLoading'));
       } finally {
         setIsLoading(false);
       }
@@ -139,9 +141,9 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert(
-          'Permission requise',
-          'Nous avons besoin de votre permission pour accéder à vos photos.',
-          [{ text: 'OK' }]
+          t('createListing.errors.permissionRequired'),
+          t('createListing.errors.needPhotoPermission'),
+          [{ text: t('common.ok') }]
         );
         return false;
       }
@@ -212,14 +214,14 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
         const asset = result.assets[0];
 
         if (!asset.base64) {
-          Alert.alert('Erreur', 'Impossible de traiter cette image. Veuillez réessayer.');
+          Alert.alert(t('common.error'), t('createListing.errors.errorProcessingImage'));
           return;
         }
 
         const imageUri = buildDataUri(asset.base64, asset.mimeType);
 
         if (!imageUri) {
-          Alert.alert('Erreur', 'Format de fichier non supporté.');
+          Alert.alert(t('common.error'), t('createListing.errors.unsupportedFormat'));
           return;
         }
 
@@ -230,7 +232,7 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert('Erreur', 'Impossible de sélectionner l\'image');
+      Alert.alert(t('common.error'), t('createListing.errors.errorSelectingImage'));
     }
   };
 
@@ -249,7 +251,7 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
 
     // Validation
     if (!formData.title || !formData.location || !formData.startDate || !formData.price) {
-      alert('Veuillez remplir tous les champs obligatoires');
+      alert(t('createListing.errors.fillRequired'));
       return;
     }
 
@@ -259,16 +261,16 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
       // Map local form data to API expected shape
       const selectedCareTypes = guardTypes
         .filter((t) => (formData as any)[t.id])
-        .map((t) => t.label);
+        .map((t) => t.apiLabel);
 
       // Backend only accepts a single careTypeLabel, not multiple
       if (selectedCareTypes.length === 0) {
-        alert('Veuillez sélectionner au moins un type de garde');
+        alert(t('createListing.errors.selectGuardType'));
         return;
       }
 
       if (selectedCareTypes.length > 1) {
-        alert('Veuillez sélectionner un seul type de garde. Seul le premier sera utilisé.');
+        alert(t('createListing.errors.selectOneGuardType'));
       }
 
       // DatePicker already returns dates in YYYY-MM-DD format
@@ -287,7 +289,7 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
 
       const startDate = toIsoDate(formData.startDate);
       if (!startDate) {
-        alert('Veuillez entrer une date de début valide (format: JJ/MM/AAAA)');
+        alert(t('createListing.errors.validStartDate'));
         return;
       }
 
@@ -316,7 +318,7 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
         
         if (result) {
           console.log('Annonce mise à jour avec succès:', result);
-          alert('Annonce mise à jour avec succès!');
+          alert(t('createListing.errors.successUpdated'));
           onBack();
         }
       } else {
@@ -326,13 +328,13 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
         
         if (result) {
           console.log('Annonce créée avec succès:', result);
-          alert('Annonce créée avec succès!');
+          alert(t('createListing.errors.successCreated'));
           onBack();
         }
       }
     } catch (error) {
-      console.error(listingId ? 'Erreur lors de la mise à jour de l\'annonce:' : 'Erreur lors de la création de l\'annonce:', error);
-      alert(listingId ? 'Erreur lors de la mise à jour de l\'annonce' : 'Erreur lors de la création de l\'annonce');
+      console.error(listingId ? 'Error updating announcement:' : 'Error creating announcement:', error);
+      alert(listingId ? t('createListing.errors.errorUpdating') : t('createListing.errors.errorCreating'));
     } finally {
       setIsSubmitting(false);
     }
@@ -342,14 +344,14 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
     return (
       <View style={styles.container}>
         <PageHeader 
-          title={listingId ? "Modifier l'annonce" : "Créer une annonce"}
+          title={listingId ? t('createListing.editTitle') : t('createListing.title')}
           icon={listingId ? "create" : "add"}
           showBackButton={showBackButton}
           onBack={onBack}
         />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={styles.loadingText}>Chargement de l'annonce...</Text>
+          <Text style={styles.loadingText}>{t('createListing.loading')}</Text>
         </View>
       </View>
     );
@@ -358,7 +360,7 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
   return (
     <View style={styles.container}>
       <PageHeader 
-        title={listingId ? "Modifier l'annonce" : "Créer une annonce"}
+        title={listingId ? t('createListing.editTitle') : t('createListing.title')}
         icon={listingId ? "create" : "add"}
         showBackButton={showBackButton}
         onBack={onBack}
@@ -368,9 +370,9 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
         {/* Title */}
         <Card style={styles.sectionCard}>
           <CardContent>
-            <Label required>Titre de l'annonce</Label>
+            <Label required>{t('createListing.sections.title')}</Label>
             <Input
-              placeholder="Ex: Garde de mes 2 chats pendant les vacances"
+              placeholder={t('createListing.sections.titlePlaceholder')}
               value={formData.title}
               onChangeText={(text) => setFormData(prev => ({ ...prev, title: text }))}
             />
@@ -380,11 +382,11 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
         {/* Location */}
         <Card style={styles.sectionCard}>
           <CardContent>
-            <Label required>Localisation</Label>
+            <Label required>{t('createListing.sections.location')}</Label>
             <View style={styles.locationInputWrapper}>
               <Icon name="MapPin" size={16} color={theme.colors.mutedForeground} style={styles.locationIcon} />
               <Input
-                placeholder="Adresse ou ville"
+                placeholder={t('createListing.sections.locationPlaceholder')}
                 style={styles.locationInput}
                 value={formData.location}
                 onChangeText={(text) => setFormData(prev => ({ ...prev, location: text }))}
@@ -396,16 +398,16 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
         {/* Guard Type */}
         <Card style={styles.sectionCard}>
           <CardContent>
-            <Label>Type de garde demandée</Label>
+            <Label>{t('createListing.sections.guardType')}</Label>
             <View style={styles.guardTypeList}>
               {guardTypes.map((type) => (
                 <View key={type.id} style={styles.guardTypeItem}>
                   <View style={styles.guardTypeContent}>
                     <Text style={styles.guardTypeLabel}>
-                      {type.label}
+                      {t(type.labelKey)}
                     </Text>
                     <Text style={styles.guardTypeDescription}>
-                      {type.description}
+                      {t(type.descKey)}
                     </Text>
                   </View>
                   <Switch 
@@ -421,23 +423,23 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
         {/* Dates */}
         <Card style={styles.sectionCard}>
           <CardContent>
-            <Label>Période de garde</Label>
+            <Label>{t('createListing.sections.period')}</Label>
             <View style={styles.dateRow}>
               <View style={styles.dateField}>
-                <Label style={styles.dateLabel} required>Date de début</Label>
+                <Label style={styles.dateLabel} required>{t('createListing.sections.startDate')}</Label>
                 <DatePicker
                   value={formData.startDate}
                   onDateChange={(date) => setFormData(prev => ({ ...prev, startDate: date }))}
-                  placeholder="Sélectionner une date"
+                  placeholder={t('createListing.sections.selectDate')}
                   minimumDate={new Date()}
                 />
               </View>
               <View style={styles.dateField}>
-                <Label style={styles.dateLabel}>Date de fin</Label>
+                <Label style={styles.dateLabel}>{t('createListing.sections.endDate')}</Label>
                 <DatePicker
                   value={formData.endDate}
                   onDateChange={(date) => setFormData(prev => ({ ...prev, endDate: date }))}
-                  placeholder="Sélectionner une date"
+                  placeholder={t('createListing.sections.selectDate')}
                   minimumDate={formData.startDate ? new Date(formData.startDate + 'T00:00:00') : new Date()}
                 />
               </View>
@@ -448,19 +450,19 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
         {/* Frequency */}
         <Card style={styles.sectionCard}>
           <CardContent>
-            <Label>Fréquence de visite requise</Label>
+            <Label>{t('createListing.sections.frequency')}</Label>
             <View style={styles.frequencyWrapper}>
               <Icon name="Clock" size={16} color={theme.colors.mutedForeground} style={styles.frequencyIcon} />
               <Select
                 value={formData.frequency}
                 onValueChange={(value) => setFormData(prev => ({ ...prev, frequency: value }))}
-                placeholder="Sélectionner la fréquence"
-                options={frequencyOptions}
+                placeholder={t('createListing.sections.selectFrequency')}
+                options={frequencyOptions.map(opt => ({ value: opt.value, label: t(opt.labelKey) }))}
                 style={styles.frequencySelect}
               />
             </View>
             <Text style={styles.helpText}>
-              À quelle fréquence le gardien doit-il venir pendant votre absence ?
+              {t('createListing.sections.frequencyHelp')}
             </Text>
           </CardContent>
         </Card>
@@ -468,11 +470,11 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
         {/* Price */}
         <Card style={styles.sectionCard}>
           <CardContent>
-            <Label required>Rémunération proposée</Label>
+            <Label required>{t('createListing.sections.price')}</Label>
             <View style={styles.priceWrapper}>
               <Icon name="Euro" size={16} color={theme.colors.mutedForeground} style={styles.priceIcon} />
               <Input
-                placeholder="0"
+                placeholder={t('createListing.sections.pricePlaceholder')}
                 keyboardType="decimal-pad"
                 style={styles.priceInput}
                 value={formData.price}
@@ -487,7 +489,7 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
                   setFormData(prev => ({ ...prev, price: formatted }));
                 }}
               />
-              <Text style={styles.priceSuffix}>/jour</Text>
+              <Text style={styles.priceSuffix}>{t('createListing.sections.perDay')}</Text>
             </View>
           </CardContent>
         </Card>
@@ -495,9 +497,9 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
         {/* Description */}
         <Card style={styles.sectionCard}>
           <CardContent>
-            <Label>Description</Label>
+            <Label>{t('createListing.sections.description')}</Label>
             <Textarea
-              placeholder="Décrivez votre demande, votre logement, vos animaux/plantes..."
+              placeholder={t('createListing.sections.descriptionPlaceholder')}
               rows={4}
               value={formData.description}
               onChangeText={(text) => setFormData(prev => ({ ...prev, description: text }))}
@@ -508,9 +510,9 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
         {/* Instructions */}
         <Card style={styles.sectionCard}>
           <CardContent>
-            <Label>Consignes spécifiques</Label>
+            <Label>{t('createListing.sections.instructions')}</Label>
             <Textarea
-              placeholder="Instructions détaillées, horaires d'alimentation, contacts vétérinaire..."
+              placeholder={t('createListing.sections.instructionsPlaceholder')}
               rows={4}
               value={formData.instructions}
               onChangeText={(text) => setFormData(prev => ({ ...prev, instructions: text }))}
@@ -521,7 +523,7 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
         {/* Public Photos */}
         <Card style={styles.sectionCard}>
           <CardContent>
-            <Label>Photos publiques</Label>
+            <Label>{t('createListing.sections.publicPhotos')}</Label>
             <View style={styles.photosGrid}>
               {formData.photos.map((photo, index) => (
                 <View key={index} style={styles.photoItem}>
@@ -542,11 +544,11 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
                 onPress={addPhoto}
               >
                 <Icon name="Plus" size={20} color={theme.colors.foreground} />
-                <Text style={styles.addPhotoText}>Ajouter</Text>
+                <Text style={styles.addPhotoText}>{t('createListing.actions.add')}</Text>
               </TouchableOpacity>
             </View>
             <Text style={styles.helpText}>
-              Photos visibles par tous les gardiens pour présenter votre annonce
+              {t('createListing.sections.publicPhotosHelp')}
             </Text>
           </CardContent>
         </Card>
@@ -556,7 +558,7 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
           <CardContent>
             <View style={styles.privatePhotosHeader}>
               <Icon name="ShieldCheckmark" size={16} color={theme.colors.mutedForeground} />
-              <Label>Photos d'accès privées</Label>
+              <Label>{t('createListing.sections.privatePhotos')}</Label>
             </View>
             <View style={styles.photosGrid}>
               {formData.privatePhotos.map((photo, index) => (
@@ -578,11 +580,11 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
                 onPress={addPrivatePhoto}
               >
                 <Icon name="Plus" size={16} color={theme.colors.foreground} />
-                <Text style={styles.addPhotoText}>Ajouter</Text>
+                <Text style={styles.addPhotoText}>{t('createListing.actions.add')}</Text>
               </TouchableOpacity>
             </View>
             <Text style={styles.helpText}>
-              Photos sensibles (codes, clés, accès) révélées uniquement après acceptation de la mission
+              {t('createListing.sections.privatePhotosHelp')}
             </Text>
           </CardContent>
         </Card>
@@ -590,12 +592,12 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
         {/* Additional Options */}
         <Card style={styles.sectionCard}>
           <CardContent>
-            <Label>Options supplémentaires</Label>
+            <Label>{t('createListing.sections.additionalOptions')}</Label>
             <View style={styles.optionsList}>
               <View style={styles.optionItem}>
                 <View style={styles.optionContent}>
-                  <Text style={styles.optionTitle}>Vérification d'identité requise</Text>
-                  <Text style={styles.optionDescription}>Le gardien devra fournir une pièce d'identité</Text>
+                  <Text style={styles.optionTitle}>{t('createListing.sections.idVerification')}</Text>
+                  <Text style={styles.optionDescription}>{t('createListing.sections.idVerificationDesc')}</Text>
                 </View>
                 <Switch 
                   value={formData.requiresIdVerification} 
@@ -604,8 +606,8 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
               </View>
               <View style={styles.optionItem}>
                 <View style={styles.optionContent}>
-                  <Text style={styles.optionTitle}>Disponible en urgence</Text>
-                  <Text style={styles.optionDescription}>Accepter les demandes de dernière minute</Text>
+                  <Text style={styles.optionTitle}>{t('createListing.sections.emergency')}</Text>
+                  <Text style={styles.optionDescription}>{t('createListing.sections.emergencyDesc')}</Text>
                 </View>
                 <Switch 
                   value={formData.availableForEmergency} 
@@ -626,20 +628,20 @@ export function CreateListingPage({ onBack, listingId, showBackButton = true }: 
             {isSubmitting ? (
               <>
                 <Text style={styles.submitButtonText}>
-                  {listingId ? 'Mise à jour en cours...' : 'Publication en cours...'}
+                  {listingId ? t('createListing.actions.updating') : t('createListing.actions.publishing')}
                 </Text>
               </>
             ) : (
               <>
                 <Icon name="Send" size={16} color={theme.colors.primaryForeground} />
                 <Text style={styles.submitButtonText}>
-                  {listingId ? 'Mettre à jour l\'annonce' : 'Publier l\'annonce'}
+                  {listingId ? t('createListing.actions.update') : t('createListing.actions.publish')}
                 </Text>
               </>
             )}
           </TouchableOpacity>
           <Text style={styles.submitHelpText}>
-            {listingId ? 'Vos modifications seront appliquées immédiatement' : 'Votre annonce sera visible immédiatement'}
+            {listingId ? t('createListing.actions.willBeApplied') : t('createListing.actions.willBeVisible')}
           </Text>
         </View>
       </ScrollView>

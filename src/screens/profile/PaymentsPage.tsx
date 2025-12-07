@@ -7,6 +7,7 @@ import { Icon } from '../../components/ui/Icon';
 import { theme } from '../../styles/theme';
 import { DEFAULT_BASE_URL } from '../../services/apiClient';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 interface PaymentsPageProps {
   onBack: () => void;
@@ -33,37 +34,38 @@ type TransactionItem = {
   isPositive: boolean;
 };
 
-const STATUS_STYLES: Record<
+const getStatusStyles = (t: (key: string) => string): Record<
   string,
   { label: string; badgeBg: string; badgeBorder: string; textColor: string }
-> = {
+> => ({
   succeeded: {
-    label: 'Réussi',
+    label: t('payments.status.succeeded'),
     badgeBg: '#f0fdf4',
     badgeBorder: '#bbf7d0',
     textColor: '#15803d',
   },
   requires_payment_method: {
-    label: 'Action requise',
+    label: t('payments.status.requiresPaymentMethod'),
     badgeBg: '#fff7ed',
     badgeBorder: '#fed7aa',
     textColor: '#c2410c',
   },
   processing: {
-    label: 'En cours',
+    label: t('payments.status.processing'),
     badgeBg: '#ecfeff',
     badgeBorder: '#bae6fd',
     textColor: '#0ea5e9',
   },
   canceled: {
-    label: 'Annulé',
+    label: t('payments.status.canceled'),
     badgeBg: '#fef2f2',
     badgeBorder: '#fecaca',
     textColor: '#b91c1c',
   },
-};
+});
 
 export function PaymentsPage({ onBack }: PaymentsPageProps) {
+  const { t } = useTranslation();
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -93,8 +95,8 @@ export function PaymentsPage({ onBack }: PaymentsPageProps) {
         throw new Error(
           text ||
             (response.status === 401
-              ? 'Session expirée, veuillez vous reconnecter.'
-              : `Impossible de charger les transactions (HTTP ${response.status})`),
+              ? t('payments.errors.sessionExpired')
+              : t('payments.errors.errorLoading', { status: response.status })),
         );
       }
 
@@ -103,7 +105,7 @@ export function PaymentsPage({ onBack }: PaymentsPageProps) {
       setLastUpdated(new Date());
     } catch (err) {
       console.error('Erreur lors du chargement des paiements:', err);
-      setErrorMessage(err instanceof Error ? err.message : 'Impossible de charger les transactions.');
+      setErrorMessage(err instanceof Error ? err.message : t('payments.errors.errorLoadingGeneric'));
       setPayouts([]);
     } finally {
       setIsLoading(false);
@@ -130,7 +132,7 @@ export function PaymentsPage({ onBack }: PaymentsPageProps) {
   };
 
   const formatDate = (value: string) => {
-    if (!value) return 'Date inconnue';
+    if (!value) return t('common.unknownDate');
     try {
       return new Date(value).toLocaleString('fr-FR', {
         day: '2-digit',
@@ -150,13 +152,13 @@ export function PaymentsPage({ onBack }: PaymentsPageProps) {
         id: payout.paymentId,
         description:
           payout.source === 'subscription'
-            ? 'Abonnement Premium'
+            ? t('payments.types.premiumSubscription')
             : payout.jobId
-            ? `Mission #${payout.jobId}`
-            : 'Paiement',
+            ? t('payments.types.mission', { id: payout.jobId })
+            : t('payments.types.payment'),
         meta: [
-          payout.subscriptionId ? `Abonnement ${payout.subscriptionId}` : null,
-          payout.invoiceId ? `Facture ${payout.invoiceId}` : null,
+          payout.subscriptionId ? t('payments.types.premiumSubscription') + ' ' + payout.subscriptionId : null,
+          payout.invoiceId ? 'Invoice ' + payout.invoiceId : null,
           formatDate(payout.created),
         ]
           .filter(Boolean)
@@ -165,13 +167,14 @@ export function PaymentsPage({ onBack }: PaymentsPageProps) {
         status: payout.status,
         isPositive: payout.amount >= 0,
       })),
-    [payouts],
+    [payouts, t],
   );
 
   const TransactionCard = ({ transaction }: { transaction: TransactionItem }) => {
+    const statusStyles = getStatusStyles(t);
     const statusInfo =
-      STATUS_STYLES[transaction.status] ||
-      STATUS_STYLES.processing;
+      statusStyles[transaction.status] ||
+      statusStyles.processing;
 
     return (
     <Card style={styles.transactionCard}>
@@ -229,17 +232,17 @@ export function PaymentsPage({ onBack }: PaymentsPageProps) {
           <TouchableOpacity onPress={onBack} style={styles.backButton}>
             <Icon name="arrow-back" size={24} color={theme.colors.foreground} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Paiements</Text>
+          <Text style={styles.headerTitle}>{t('payments.title')}</Text>
           <TouchableOpacity onPress={handleRefresh} disabled={isRefreshing} style={styles.refreshButton}>
             <Icon name={isRefreshing ? 'refresh' : 'refresh'} size={20} color={theme.colors.primary} />
             <Text style={[styles.refreshText, isRefreshing && styles.refreshTextDisabled]}>
-              {isRefreshing ? 'Actualisation...' : 'Actualiser'}
+              {isRefreshing ? t('payments.refreshing') : t('payments.refresh')}
             </Text>
           </TouchableOpacity>
         </View>
         {lastUpdated && (
           <Text style={styles.lastUpdatedText}>
-            Mis à jour le {new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' }).format(lastUpdated)}
+            {t('payments.lastUpdated', { date: new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' }).format(lastUpdated) })}
           </Text>
         )}
       </View>
@@ -249,7 +252,7 @@ export function PaymentsPage({ onBack }: PaymentsPageProps) {
         {/* Recent Transactions */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Transactions récentes</Text>
+            <Text style={styles.sectionTitle}>{t('payments.transactions.title')}</Text>
             <View style={styles.sectionActions}>
               {errorMessage && (
                 <Text style={styles.errorText}>
@@ -262,14 +265,14 @@ export function PaymentsPage({ onBack }: PaymentsPageProps) {
           {isLoading ? (
             <View style={styles.loadingState}>
               <ActivityIndicator size="small" color={theme.colors.primary} />
-              <Text style={styles.loadingText}>Chargement des transactions...</Text>
+              <Text style={styles.loadingText}>{t('payments.transactions.loading')}</Text>
             </View>
           ) : payouts.length === 0 ? (
             <View style={styles.emptyState}>
               <Icon name="card" size={32} color={theme.colors.mutedForeground} />
-              <Text style={styles.emptyTitle}>Aucune transaction</Text>
+              <Text style={styles.emptyTitle}>{t('payments.transactions.empty.title')}</Text>
               <Text style={styles.emptySubtitle}>
-                Vos transactions récentes apparaîtront ici dès qu'elles seront disponibles.
+                {t('payments.transactions.empty.subtitle')}
               </Text>
             </View>
           ) : (

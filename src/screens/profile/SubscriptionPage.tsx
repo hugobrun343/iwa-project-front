@@ -12,12 +12,14 @@ import { useAuth } from '../../contexts/AuthContext';
 import { usePrices, useSubscribe } from '../../hooks/api/useStripeApi';
 import { PREMIUM_PRICE_ID, BACKEND_URL } from '../../config/config';
 import { useUserApi } from '../../hooks/api/useUserApi';
+import { useTranslation } from 'react-i18next';
 
 interface SubscriptionPageProps {
   onBack: () => void;
 }
 
 export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
+  const { t } = useTranslation();
   const { user, accessToken } = useAuth();
   const { getMyProfile } = useUserApi();
   const [profileDetails, setProfileDetails] = useState<any>(null);
@@ -41,7 +43,7 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
     setIsProcessingPayment(false);
     setClientSecret(undefined);
     setProcessingPlanId(null);
-    Alert.alert('Succès', 'Votre abonnement a été activé avec succès !');
+    Alert.alert(t('common.success'), t('subscription.errors.success'));
   };
 
   const handlePaymentError = (error: any) => {
@@ -56,7 +58,7 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
                           error?.type === 'Canceled';
     
     if (!isCancellation) {
-      Alert.alert('Erreur', error?.message || 'Une erreur est survenue lors du paiement.');
+      Alert.alert(t('common.error'), error?.message || t('subscription.errors.errorSubscribing'));
     }
   };
 
@@ -94,19 +96,19 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
 
   // Get interval label from recurring object
   const getIntervalLabel = (recurring?: { interval: string; interval_count: number } | null) => {
-    if (!recurring || !recurring.interval) return 'mois';
+    if (!recurring || !recurring.interval) return t('subscription.plans.perMonth');
     const interval = recurring.interval.toLowerCase();
     const count = recurring.interval_count || 1;
     
     switch (interval) {
       case 'month':
-        return count === 1 ? 'mois' : `${count} mois`;
+        return t('subscription.plans.perMonth');
       case 'year':
-        return count === 1 ? 'an' : `${count} ans`;
+        return t('subscription.plans.perYear');
       case 'day':
-        return count === 1 ? 'jour' : `${count} jours`;
+        return t('subscription.plans.perDay');
       case 'week':
-        return count === 1 ? 'semaine' : `${count} semaines`;
+        return t('subscription.plans.perWeek');
       default:
         return interval;
     }
@@ -127,7 +129,7 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
       if (!customerId) {
         const userEmail = profileDetails?.email ?? user?.email ?? '';
         if (!userEmail) {
-          Alert.alert('Erreur', 'Veuillez d\'abord compléter votre profil avec une adresse email.');
+          Alert.alert(t('common.error'), t('subscription.errors.completeEmail'));
           setIsProcessingPayment(false);
           setProcessingPlanId(null);
           return;
@@ -136,7 +138,7 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
         // Get name and phone from profile
         const firstName = profileDetails?.firstName ?? user?.firstName ?? '';
         const lastName = profileDetails?.lastName ?? user?.lastName ?? '';
-        const fullName = `${firstName} ${lastName}`.trim() || user?.fullName || user?.username || 'Utilisateur';
+        const fullName = `${firstName} ${lastName}`.trim() || user?.fullName || user?.username || t('common.user');
         const phone = profileDetails?.phoneNumber ?? user?.telephone ?? '';
 
         // Create customer directly with email, name, and phone
@@ -163,10 +165,10 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
             customerId = json.customerId;
             setCustomerId(json.customerId); // Update state
           } else {
-            throw new Error(json.message || 'Impossible de créer le compte client');
+            throw new Error(json.message || t('subscription.errors.errorCreatingCustomer'));
           }
         } catch (error: any) {
-          throw new Error(error.message || 'Impossible de créer le compte client');
+          throw new Error(error.message || t('subscription.errors.errorCreatingCustomer'));
         }
       }
 
@@ -181,11 +183,11 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
         // Free subscription or already paid
         setIsProcessingPayment(false);
         setProcessingPlanId(null);
-        Alert.alert('Succès', `Votre abonnement ${planName} a été activé avec succès !`);
+        Alert.alert(t('common.success'), t('subscription.errors.success'));
       }
     } catch (error: any) {
       console.error('Subscription error:', error);
-      Alert.alert('Erreur', error.message || 'Une erreur est survenue lors de l\'abonnement.');
+      Alert.alert(t('common.error'), error.message || t('subscription.errors.errorSubscribing'));
       setIsProcessingPayment(false);
       setClientSecret(undefined);
       setProcessingPlanId(null);
@@ -195,28 +197,28 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
   // Handle subscription cancellation
   const handleCancelSubscription = async () => {
     if (!activeSubscriptionId) {
-      Alert.alert('Erreur', 'Aucun abonnement actif trouvé.');
+      Alert.alert(t('common.error'), t('subscription.errors.noActiveSubscription'));
       return;
     }
 
     Alert.alert(
-      'Annuler l\'abonnement',
-      'Voulez-vous vraiment annuler votre abonnement ? Vous garderez l\'accès jusqu\'à la fin de la période de facturation.',
+      t('subscription.plans.cancelConfirm'),
+      t('subscription.plans.cancelMessage'),
       [
-        { text: 'Non', style: 'cancel' },
+        { text: t('subscription.plans.no'), style: 'cancel' },
         {
-          text: 'Oui, annuler',
+          text: t('subscription.plans.yesCancel'),
           style: 'destructive',
           onPress: async () => {
             try {
               console.log('Cancelling subscription:', activeSubscriptionId);
               await cancelSubscription(activeSubscriptionId);
-              Alert.alert('Succès', 'Votre abonnement sera annulé à la fin de la période de facturation.');
+              Alert.alert(t('common.success'), t('subscription.plans.cancelSuccess'));
               // Reload subscription data after cancellation
               // The usePrices hook should automatically refresh
             } catch (error: any) {
               console.error('Cancel subscription error:', error);
-              Alert.alert('Erreur', error.message || 'Impossible d\'annuler l\'abonnement.');
+              Alert.alert(t('common.error'), error.message || t('subscription.plans.cancelError'));
             }
           }
         }
@@ -243,21 +245,21 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
     plans.push({
       id: 'free',
       priceId: null,
-      name: 'Gratuit',
+      name: t('subscription.plans.free.name'),
       price: 0,
       priceCents: 0,
       interval: 'month',
       current: !currentPriceId || currentPriceId === 'free',
       features: [
-        '3 annonces par mois',
-        'Messages limités',
-        'Support par email',
-        'Profil de base'
+        t('subscription.plans.free.features.0'),
+        t('subscription.plans.free.features.1'),
+        t('subscription.plans.free.features.2'),
+        t('subscription.plans.free.features.3')
       ],
       limitations: [
-        'Pas de photos multiples',
-        'Pas de priorité dans les résultats',
-        'Pas de badges premium'
+        t('subscription.plans.free.limitations.0'),
+        t('subscription.plans.free.limitations.1'),
+        t('subscription.plans.free.limitations.2')
       ]
     });
 
@@ -274,7 +276,7 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
         plans.push({
           id: price.id,
           priceId: price.id,
-          name: price.nickname || price.product?.name || 'Premium',
+          name: price.nickname || price.product?.name || t('subscription.plans.premium.name'),
           price: parseFloat(formatPrice(price.unit_amount)),
           priceCents: price.unit_amount || 0,
           recurring: price.recurring,
@@ -283,16 +285,16 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
           current: isCurrent,
           popular: isPremium,
           features: [
-            'Annonces illimitées',
-            'Messages illimités',
-            'Support prioritaire 24/7',
-            'Profil vérifié',
-            'Photos multiples',
-            'Badge premium',
-            'Priorité dans les résultats',
-            'Statistiques avancées',
-            'Notifications push',
-            'Calendrier intégré'
+            t('subscription.plans.premium.features.0'),
+            t('subscription.plans.premium.features.1'),
+            t('subscription.plans.premium.features.2'),
+            t('subscription.plans.premium.features.3'),
+            t('subscription.plans.premium.features.4'),
+            t('subscription.plans.premium.features.5'),
+            t('subscription.plans.premium.features.6'),
+            t('subscription.plans.premium.features.7'),
+            t('subscription.plans.premium.features.8'),
+            t('subscription.plans.premium.features.9')
           ],
           limitations: []
         });
@@ -316,7 +318,7 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
         <CardContent style={styles.planContent}>
           {plan.popular && !isCurrent && (
             <Badge style={styles.popularBadge}>
-              <Text style={styles.popularText}>Le plus populaire</Text>
+              <Text style={styles.popularText}>{t('subscription.plans.popular')}</Text>
             </Badge>
           )}
 
@@ -324,19 +326,19 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
             <Text style={styles.planName}>{plan.name}</Text>
             {isCurrent && (
               <Badge variant="outline" style={styles.currentBadge}>
-                <Text style={styles.currentText}>Actuel</Text>
+                <Text style={styles.currentText}>{t('subscription.plans.current')}</Text>
               </Badge>
             )}
             {cancelAtPeriodEnd && isCurrent && (
               <Badge variant="outline" style={styles.cancellingBadge}>
-                <Text style={styles.cancellingText}>Annulation programmée</Text>
+                <Text style={styles.cancellingText}>{t('subscription.plans.cancelling')}</Text>
               </Badge>
             )}
           </View>
 
           <View style={styles.priceContainer}>
             <Text style={styles.price}>
-              {plan.price === 0 ? 'Gratuit' : `${plan.price}€`}
+              {plan.price === 0 ? t('subscription.plans.free.name') : `${plan.price}€`}
             </Text>
             {plan.price > 0 && (
               <Text style={styles.period}>/{getIntervalLabel(plan.recurring || { interval: plan.interval || 'month', interval_count: plan.intervalCount || 1 })}</Text>
@@ -346,7 +348,7 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
           {isCurrent && currentPeriodEnd && (
             <View style={styles.periodInfo}>
               <Text style={styles.periodInfoText}>
-                Renouvellement le {formatDate(currentPeriodEnd)}
+                {t('subscription.plans.renewal', { date: formatDate(currentPeriodEnd) })}
               </Text>
             </View>
           )}
@@ -374,7 +376,7 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
               onPress={handleCancelSubscription}
               disabled={isProcessingPayment}
             >
-              <Text style={styles.cancelButtonText}>Annuler l'abonnement</Text>
+              <Text style={styles.cancelButtonText}>{t('subscription.plans.cancel')}</Text>
             </Button>
           )}
 
@@ -391,7 +393,7 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
                 <ActivityIndicator size="small" color="#ffffff" />
               ) : (
                 <Text style={styles.planButtonText}>
-                  Passer à {plan.name}
+                  {t('subscription.plans.upgrade', { name: plan.name })}
                 </Text>
               )}
             </Button>
@@ -403,7 +405,7 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
               variant="outline"
               disabled
             >
-              <Text style={styles.currentPlanButtonText}>Plan actuel</Text>
+              <Text style={styles.currentPlanButtonText}>{t('subscription.plans.current')}</Text>
             </Button>
           )}
         </CardContent>
@@ -414,7 +416,7 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
   return (
     <View style={styles.container}>
       <PageHeader
-        title="Abonnement"
+        title={t('subscription.title')}
         icon="star"
         showBackButton
         onBack={onBack}
@@ -423,7 +425,7 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
         {subscriptionLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={theme.colors.primary} />
-            <Text style={styles.loadingText}>Chargement des abonnements...</Text>
+            <Text style={styles.loadingText}>{t('subscription.loading')}</Text>
           </View>
         ) : (
           <>
@@ -433,16 +435,16 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
                 <CardContent style={styles.currentSubscriptionContent}>
                   <View style={styles.currentSubscriptionHeader}>
                     <Icon name="star" size={24} color={theme.colors.primary} />
-                    <Text style={styles.currentSubscriptionTitle}>Abonnement Premium actif</Text>
+                    <Text style={styles.currentSubscriptionTitle}>{t('subscription.current.title')}</Text>
                   </View>
                   {currentPeriodEnd && (
                     <Text style={styles.currentSubscriptionText}>
-                      Renouvellement automatique le {formatDate(currentPeriodEnd)}
+                      {t('subscription.current.renewal', { date: formatDate(currentPeriodEnd) })}
                     </Text>
                   )}
                   {cancelAtPeriodEnd && (
                     <Text style={styles.cancellingText}>
-                      ⚠️ Annulation programmée - L'accès Premium se terminera le {formatDate(currentPeriodEnd)}
+                      {t('subscription.current.cancelling', { date: formatDate(currentPeriodEnd) })}
                     </Text>
                   )}
                 </CardContent>
@@ -451,7 +453,7 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
 
             {/* Plans */}
             <View style={styles.plansContainer}>
-              <Text style={styles.sectionTitle}>Choisissez votre plan</Text>
+              <Text style={styles.sectionTitle}>{t('subscription.plans.title')}</Text>
               {availablePlans.map((plan) => (
                 <PlanCard key={plan.id} plan={plan} />
               ))}
@@ -460,26 +462,26 @@ export function SubscriptionPage({ onBack }: SubscriptionPageProps) {
             {/* FAQ */}
             <Card style={styles.faqCard}>
               <CardContent style={styles.faqContent}>
-                <Text style={styles.sectionTitle}>Questions fréquentes</Text>
+                <Text style={styles.sectionTitle}>{t('subscription.faq.title')}</Text>
 
                 <View style={styles.faqItem}>
-                  <Text style={styles.faqQuestion}>Puis-je annuler à tout moment ?</Text>
+                  <Text style={styles.faqQuestion}>{t('subscription.faq.canCancel')}</Text>
                   <Text style={styles.faqAnswer}>
-                    Oui, vous pouvez annuler votre abonnement à tout moment depuis cette page. Vous garderez l'accès jusqu'à la fin de votre période de facturation.
+                    {t('subscription.faq.canCancelAnswer')}
                   </Text>
                 </View>
 
                 <View style={styles.faqItem}>
-                  <Text style={styles.faqQuestion}>Que se passe-t-il si j'annule ?</Text>
+                  <Text style={styles.faqQuestion}>{t('subscription.faq.whatIfCancel')}</Text>
                   <Text style={styles.faqAnswer}>
-                    Vous gardez l'accès Premium jusqu'à la fin de votre période de facturation. Après cela, vous repasserez au plan gratuit.
+                    {t('subscription.faq.whatIfCancelAnswer')}
                   </Text>
                 </View>
 
                 <View style={styles.faqItem}>
-                  <Text style={styles.faqQuestion}>Y a-t-il une période d'essai ?</Text>
+                  <Text style={styles.faqQuestion}>{t('subscription.faq.trial')}</Text>
                   <Text style={styles.faqAnswer}>
-                    Oui, nous offrons 7 jours d'essai gratuit pour le plan Premium. Vous pouvez annuler à tout moment pendant cette période sans être facturé.
+                    {t('subscription.faq.trialAnswer')}
                   </Text>
                 </View>
               </CardContent>

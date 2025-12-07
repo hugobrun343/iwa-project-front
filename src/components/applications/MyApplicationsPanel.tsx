@@ -157,13 +157,6 @@ export function MyApplicationsPanel({ visible, onClose }: MyApplicationsPanelPro
   const acceptedApplications = applications.filter(app => app.status === 'ACCEPTED');
   const refusedApplications = applications.filter(app => app.status === 'REFUSED');
   
-  // Debug logs
-  console.log('MyApplicationsPanel - Total applications in state:', applications.length);
-  console.log('MyApplicationsPanel - Sent applications:', sentApplications.length);
-  console.log('MyApplicationsPanel - Accepted applications:', acceptedApplications.length);
-  console.log('MyApplicationsPanel - Refused applications:', refusedApplications.length);
-  console.log('MyApplicationsPanel - Applications statuses:', applications.map(app => ({ id: app.id, status: app.status })));
-
   return (
     <Modal
       visible={visible}
